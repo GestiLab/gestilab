@@ -11,16 +11,17 @@ GestiLab es un sistema desarrollado por el equipo TEDE-SOFT para gestionar el in
 
 GestiLab utiliza una arquitectura de dos microservicios independientes, cada uno con su propia base de datos. Se comunican mediante HTTP cuando necesitan una respuesta inmediata y mediante eventos cuando la información puede actualizarse de forma asíncrona.
 
+
 ```mermaid
 flowchart LR
-    UI[Cliente Angular] -->|HTTP| P[prestamos-service]
-    P -->|GET /unidades/{id}| I[inventario-service]
-    P -.->|Evento UnidadCambioDeEstado| B[(Corredor de mensajes)]
+    UI["Cliente Angular"] -->|HTTP| P["prestamos-service"]
+    P -->|"GET /unidades/{id}"| I["inventario-service"]
+    P -.->|"Evento UnidadCambioDeEstado"| B[("Corredor de mensajes")]
     B -.-> I
-    P --- PDB[(BD de préstamos)]
-    I --- IDB[(BD de inventario)]
-    P --- S3[(Almacenamiento de objetos)]
-    K[Keycloak] -.->|Emite el token| UI
+    P --- PDB[("BD de préstamos")]
+    I --- IDB[("BD de inventario")]
+    P --- S3[("Almacenamiento de objetos")]
+    K["Keycloak"] -.->|"Emite el token"| UI
 ```
 
 | Servicio | Responsabilidad |
