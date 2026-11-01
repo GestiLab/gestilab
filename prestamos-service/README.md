@@ -9,10 +9,10 @@ Microservicio de préstamos de Gestilab (Spring Boot 3.5, Java 21). Usa un `java
    ```bash
    docker compose up -d
    ```
-3. **Arranque y salud:** inicia el servicio (puerto `8082`) y, en otra terminal, comprueba la salud. Debe responder `200` con `{"status":"UP"}`.
+3. **Arranque y salud:** inicia el servicio (API en `8090`, Actuator en `8091`) y, en otra terminal, comprueba la salud. Debe responder `200` con `{"status":"UP"}`.
    ```bash
    ./mvnw spring-boot:run
-   curl localhost:8082/salud
+   curl localhost:8091/salud
    ```
 4. **Pruebas:** usan H2 en memoria, no necesitan Docker.
    ```bash

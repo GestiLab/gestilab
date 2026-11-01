@@ -9,10 +9,10 @@ Microservicio de inventario de Gestilab (Spring Boot 3.5, Java 21).
    ```bash
    docker compose up -d
    ```
-3. **Arranque y salud:** inicia el servicio (puerto `8080`) y, en otra terminal, comprueba la salud. Debe responder `200` con `{"status":"UP"}`.
+3. **Arranque y salud:** inicia el servicio (API en `8080`, Actuator en `8081`) y, en otra terminal, comprueba la salud. Debe responder `200` con `{"status":"UP"}`.
    ```bash
    ./mvnw spring-boot:run
-   curl localhost:8080/salud
+   curl localhost:8081/salud
    ```
 4. **Pruebas:** usan H2 en memoria, no necesitan Docker.
    ```bash

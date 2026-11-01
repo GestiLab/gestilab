@@ -2,27 +2,45 @@ package com.tedesoft.inventarioservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalManagementPort;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.MockMvc;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import java.util.Map;
+import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
+/**
+ * Servidor real en puertos aleatorios: la API y el Actuator corren en servidores distintos
+ * (management.server.port), así que /salud solo existe en el puerto de gestión.
+ */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 class InventarioServiceApplicationTests {
 
-    @Autowired MockMvc mockMvc;
+    @LocalServerPort int puertoApi;
+    @LocalManagementPort int puertoGestion;
+    @Autowired TestRestTemplate rest;
 
     @Test
     void contextLoads() { }
 
     @Test
-    void salud_responde200Up() throws Exception {
-        mockMvc.perform(get("/salud"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"));
+    void salud_responde200UpEnElPuertoDeGestion() {
+        ResponseEntity<Map> respuesta = rest.getForEntity("http://localhost:" + puertoGestion + "/salud", Map.class);
+
+        assertEquals(HttpStatus.OK, respuesta.getStatusCode());
+        assertEquals("UP", respuesta.getBody().get("status"));
+    }
+
+    @Test
+    void salud_noSeExponeEnElPuertoDeLaApi() {
+        assertNotEquals(puertoApi, puertoGestion);
+
+        ResponseEntity<String> respuesta = rest.getForEntity("http://localhost:" + puertoApi + "/salud", String.class);
+
+        assertEquals(HttpStatus.NOT_FOUND, respuesta.getStatusCode());
     }
 }
