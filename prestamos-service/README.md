@@ -20,3 +20,5 @@ Microservicio de préstamos de Gestilab (Spring Boot 3.5, Java 21). Usa un `java
    ```
 
 Credenciales por defecto: `devdb` / `devdb`. Se cambian con `DB_URL`, `DB_USERNAME` y `DB_PASSWORD`.
+
+Para usar otros valores, copia `.env.example` a `.env` (está en el `.gitignore`, no se sube). `docker compose` lo lee solo; para la aplicación expórtalo antes de arrancar: `set -a; source .env; set +a; ./mvnw spring-boot:run`.

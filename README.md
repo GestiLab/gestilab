@@ -57,12 +57,12 @@ El equipo utilizará las siguientes versiones de referencia:
 |---|---|
 | Java (Eclipse Temurin JDK) | 21 LTS |
 | Maven | 3.9.x |
-| Spring Boot | Versión estable seleccionada para el proyecto |
+| Spring Boot | 3.5.16 |
 | PostgreSQL | 16 (`postgres:16-alpine`) |
 | Docker | Versión compatible con Docker Compose |
 | Git | 2.x |
 
-**Spring Boot:** la versión seleccionada para `inventario-service` será la referencia para `prestamos-service`. Ambos servicios utilizarán la misma versión, que se confirmará al crear el primer servicio.
+**Spring Boot:** la versión de referencia es la **3.5.16**, la misma en `inventario-service` y en `prestamos-service`. Los servicios nuevos deben usarla también.
 
 Imágenes de referencia para Docker y CI:
 
