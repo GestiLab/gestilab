@@ -1,0 +1,22 @@
+# inventario-service
+
+Microservicio de inventario de Gestilab (Spring Boot 3.5, Java 21).
+
+## Puesta en marcha
+
+1. **Requisitos:** Java 21 y Docker con Docker Compose.
+2. **Base de datos:** levanta Postgres (puerto `15433`, BD `inventario_db`).
+   ```bash
+   docker compose up -d
+   ```
+3. **Arranque y salud:** inicia el servicio (puerto `8080`) y, en otra terminal, comprueba la salud. Debe responder `200` con `{"status":"UP"}`.
+   ```bash
+   ./mvnw spring-boot:run
+   curl localhost:8080/salud
+   ```
+4. **Pruebas:** usan H2 en memoria, no necesitan Docker.
+   ```bash
+   ./mvnw test
+   ```
+
+Credenciales por defecto: `devdb` / `devdb`. Se cambian con `DB_URL`, `DB_USERNAME` y `DB_PASSWORD`.
