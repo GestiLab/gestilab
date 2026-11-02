@@ -1,0 +1,149 @@
+openapi: 3.0.3
+info:
+  title: GestiLab · inventario-service
+  version: 0.1.0
+  description: |
+    Contrato de consulta de una unidad del inventario. Lo expone
+    `inventario-service` y lo consume `prestamos-service`.
+
+    **Las reglas del préstamo viajan con el tipo de equipo.** La duración
+    máxima y la autorización previa son atributos del tipo, y esta respuesta
+    las incluye. Así `prestamos-service` las aplica sin conocer de antemano
+    qué tipos existen (decisión D-01, requisito RQ-01 Modificabilidad).
+
+    Todos los errores usan el cuerpo común descrito en `docs/guia-errores.md`.
+tags:
+  - name: Unidades
+    description: Unidades físicas del inventario y su estado.
+servers:
+  - url: http://localhost:8080/api/v1/inventario-service
+    description: Desarrollo local
+paths:
+  /unidades/{id}:
+    get:
+      tags: [Unidades]
+      summary: Consultar una unidad por su id
+      description: |
+        Devuelve el estado de la unidad y las reglas de su tipo de equipo.
+        `prestamos-service` lo invoca al solicitar un préstamo para saber, en
+        ese instante, si la unidad existe, si está disponible y qué reglas
+        aplican.
+      operationId: obtenerUnidad
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador de la unidad.
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          example: 14
+      responses:
+        '200':
+          description: La unidad existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unidad'
+              example:
+                id: 14
+                numeroInventario: MULT-014
+                estado: DISPONIBLE
+                tipo:
+                  id: 2
+                  nombre: Multímetro
+                  duracionMaximaDias: 7
+                  requiereAutorizacion: false
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+components:
+  responses:
+    NoEncontrado:
+      description: No existe una unidad con ese id.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+          example:
+            status: 404
+            error: Not Found
+            mensaje: Unidad 99 no encontrada
+            timestamp: '2026-11-01T10:40:29.843437'
+    ErrorInterno:
+      description: Error inesperado del servidor. El mensaje es genérico.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+          example:
+            status: 500
+            error: Internal Server Error
+            mensaje: Error inesperado. Por favor contacta al administrador.
+            timestamp: '2026-11-01T10:40:29.843437'
+  schemas:
+    Unidad:
+      type: object
+      description: Una unidad física del inventario (por ejemplo, «multímetro número 14»).
+      required: [id, numeroInventario, estado, tipo]
+      properties:
+        id:
+          type: integer
+          format: int64
+        numeroInventario:
+          type: string
+          description: Identificador de inventario. Único entre todas las unidades.
+        estado:
+          $ref: '#/components/schemas/EstadoUnidad'
+        tipo:
+          $ref: '#/components/schemas/TipoEquipo'
+    EstadoUnidad:
+      type: string
+      description: |
+        Estado de la unidad en el inventario.
+        - DISPONIBLE: se puede prestar.
+        - PRESTADA: la tiene una persona.
+        - EN_REVISION: se está revisando y no se puede prestar.
+        - FUERA_DE_SERVICIO: no se puede prestar.
+      enum: [DISPONIBLE, PRESTADA, EN_REVISION, FUERA_DE_SERVICIO]
+    TipoEquipo:
+      type: object
+      description: Categoría de equipo (por ejemplo, «multímetro») con sus reglas de préstamo.
+      required: [id, nombre, duracionMaximaDias, requiereAutorizacion]
+      properties:
+        id:
+          type: integer
+          format: int64
+        nombre:
+          type: string
+        duracionMaximaDias:
+          type: integer
+          minimum: 1
+          description: Días máximos de préstamo. Regla del tipo, no de prestamos-service.
+        requiereAutorizacion:
+          type: boolean
+          description: Si es true, el préstamo exige autorización previa.
+    ApiErrorResponse:
+      type: object
+      description: Cuerpo común de error de los dos servicios (ver docs/guia-errores.md).
+      required: [status, error, mensaje, timestamp]
+      properties:
+        status:
+          type: integer
+          description: Código de estado HTTP.
+        error:
+          type: string
+          description: Frase estándar del código HTTP.
+        mensaje:
+          type: string
+          description: Explicación para quien consume la API.
+        timestamp:
+          type: string
+          description: Fecha y hora del servidor en ISO-8601, sin zona horaria.
+        errores:
+          type: object
+          additionalProperties:
+            type: string
+          description: Mapa campo → mensaje. Solo aparece en el 400 de validación.

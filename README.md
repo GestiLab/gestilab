@@ -39,7 +39,6 @@ gestilab/
 ├── inventario-service/        # Tipos, unidades, estados y reglas
 ├── prestamos-service/         # Solicitudes, entregas, devoluciones y retrasos
 ├── docs/
-│   ├── acuerdos-previos.md    # Acuerdos iniciales y guía de aplicación
 │   ├── contrato/
 │   │   └── openapi.yaml       # Contrato de GET /unidades/{id}
 │   ├── guia-errores.md        # Formato común de errores
@@ -79,6 +78,8 @@ Acciones previstas para GitHub Actions: `actions/checkout@v4`, `actions/setup-ja
 | `inventario-service` | 8080 | 8081 |
 | `prestamos-service` | 8090 | 8091 |
 
+La API REST atiende a los clientes. Actuator expone datos de salud y operación del servicio; va en otro puerto para que esos datos no queden expuestos en el mismo puerto de la API.
+
 ## Convenciones de código
 
 - **Organización por capas:** `domain/` contiene la lógica del dominio y sus excepciones; `delivery/` contiene los controladores REST y el manejo de errores.
@@ -104,7 +105,6 @@ Acciones previstas para GitHub Actions: `actions/checkout@v4`, `actions/setup-ja
 
 | Documento | Propósito |
 |---|---|
-| [`docs/acuerdos-previos.md`](docs/acuerdos-previos.md) | Explica los acuerdos iniciales y cómo aplicarlos. |
 | [`docs/contrato/openapi.yaml`](docs/contrato/openapi.yaml) | Define el contrato del endpoint `GET /unidades/{id}`. |
 | [`docs/guia-errores.md`](docs/guia-errores.md) | Define el formato común de errores y su catálogo. |
 | [`docs/bitacora.md`](docs/bitacora.md) | Registra las decisiones de diseño, sus justificaciones y las alternativas descartadas. |
