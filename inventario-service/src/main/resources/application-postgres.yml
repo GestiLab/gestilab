@@ -1,0 +1,9 @@
+# Uso: --spring.profiles.active=postgres
+# Sin datos iniciales: solo se aplican las migraciones de esquema.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/inventario}
+    username: ${DB_USER:inventario}
+    password: ${DB_PASSWORD:inventario}
+  flyway:
+    locations: classpath:db/migration
