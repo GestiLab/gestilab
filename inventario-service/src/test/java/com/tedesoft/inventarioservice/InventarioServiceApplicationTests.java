@@ -6,6 +6,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
@@ -29,7 +31,12 @@ class InventarioServiceApplicationTests {
 
     @Test
     void salud_responde200UpEnElPuertoDeGestion() {
-        ResponseEntity<Map> respuesta = rest.getForEntity("http://localhost:" + puertoGestion + "/salud", Map.class);
+        ResponseEntity<Map<String, Object>> respuesta = rest.exchange(
+                "http://localhost:" + puertoGestion + "/salud",
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<Map<String, Object>>() { }
+        );
 
         assertEquals(HttpStatus.OK, respuesta.getStatusCode());
         assertEquals("UP", respuesta.getBody().get("status"));
