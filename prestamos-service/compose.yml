@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: prestamos_db
+    environment:
+      POSTGRES_DB: prestamos_db
+      POSTGRES_USER: ${DB_USERNAME:-devdb}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devdb}
+    ports:
+      - "15434:5432"
+    volumes:
+      - prestamos_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-devdb} -d prestamos_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  prestamos_pgdata:

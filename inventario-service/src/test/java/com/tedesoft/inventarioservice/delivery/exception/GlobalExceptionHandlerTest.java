@@ -1,0 +1,50 @@
+package com.tedesoft.inventarioservice.delivery.exception;
+
+import com.tedesoft.inventarioservice.domain.exception.RecursoNoEncontradoException;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@WebMvcTest(controllers = GlobalExceptionHandlerTest.ProbeController.class)
+@Import(GlobalExceptionHandlerTest.ProbeController.class)
+class GlobalExceptionHandlerTest {
+
+    @Autowired MockMvc mockMvc;
+
+    @RestController
+    static class ProbeController {
+        record Entrada(@NotBlank(message = "no puede estar vacío") String nombre) { }
+
+        @GetMapping("/probe/no-encontrado")
+        void noEncontrado() { throw new RecursoNoEncontradoException("Unidad 99 no encontrada"); }
+
+        @PostMapping("/probe/validar")
+        void validar(@Valid @RequestBody Entrada entrada) { }
+    }
+
+    @Test
+    void excepcionDeNegocio_devuelve404ConFormatoComunSinStackTrace() throws Exception {
+        mockMvc.perform(get("/probe/no-encontrado"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.mensaje").value("Unidad 99 no encontrada"))
+                .andExpect(jsonPath("$.trace").doesNotExist());
+    }
+
+    @Test
+    void cuerpoInvalido_devuelve400IndicandoElCampo() throws Exception {
+        mockMvc.perform(post("/probe/validar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nombre\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.nombre").value("no puede estar vacío"));
+    }
+}
