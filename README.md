@@ -110,6 +110,84 @@ La API REST atiende a los clientes. Actuator expone datos de salud y operación 
 | [`docs/bitacora.md`](docs/bitacora.md) | Registra las decisiones de diseño, sus justificaciones y las alternativas descartadas. |
 
 
+
+## Docker multi-stage e integración continua (CI)
+
+Utiliza Docker y GitHub Actions para automatizar la compilación, las pruebas y la construcción de imágenes de sus dos microservicios: `inventario-service` y `prestamos-service`.
+
+### Construcción de imágenes Docker
+
+Cada microservicio cuenta con un Dockerfile multi-stage que utiliza dos etapas:
+
+1. **Compilación:** utiliza Maven 3.9 y Java 21 para generar el archivo JAR.
+2. **Ejecución:** utiliza Eclipse Temurin 21 JRE, incluyendo únicamente lo necesario para ejecutar la aplicación.
+
+Para construir las imágenes desde la raíz del proyecto:
+
+```bash
+docker build -t gestilab/inventario-service:local ./inventario-service
+docker build -t gestilab/prestamos-service:local ./prestamos-service
+```
+
+### Verificación de salud
+
+Se comprobó el funcionamiento de ambos microservicios mediante Spring Boot Actuator, utilizando sus respectivos puertos de administración.
+
+| Microservicio | Endpoint                      | Resultado     |
+|---------------|-------------------------------|---------------|
+| Inventario    | `http://localhost:8081/salud` | HTTP 200 - UP |
+| Préstamos     | `http://localhost:8091/salud` | HTTP 200 - UP |
+
+### Pruebas automatizadas
+
+GitHub Actions ejecuta automáticamente el workflow `CI - GestiLab` en cada push y pull request.
+
+El job `test` compila ambos servicios y ejecuta sus pruebas mediante Maven.
+
+**Resultados de las pruebas locales:**
+
+- Inventario: 5 pruebas aprobadas.
+- Préstamos: 7 pruebas aprobadas.
+- Total: 12 pruebas aprobadas, sin fallos ni errores.
+
+El job `docker-build` construye las imágenes de ambos servicios cuando las pruebas finalizan correctamente. Las imágenes no se publican en ningún registro.
+
+### Protección de la rama principal
+
+La rama `main` cuenta con una regla de protección que exige Pull Request, aprobación de un integrante del equipo y ejecución satisfactoria del job `test` antes de integrar cambios.
+
+### Evidencias de GitHub Actions
+
+**Ejecución exitosa en la rama de desarrollo:**
+
+https://github.com/GestiLab/gestilab/actions/runs/41661131559
+
+**Detección de fallo intencional (CA-5):**
+
+https://github.com/GestiLab/gestilab/actions/runs/41664259606
+
+Se implementó una prueba JUnit con un fallo controlado en la rama `test/ci-fallo-controlado`. GitHub Actions detectó el error y finalizó el job `test` con estado `failure`, demostrando el funcionamiento del mecanismo de detección de errores.
+
+Esta rama de ensayo no debe integrarse en `main`.
+
+**Ejecución exitosa en main (CA-6):**
+
+PENDIENTE: agregar el enlace directo a la ejecución verde después de integrar el Pull Request.
+
+### Tecnologías utilizadas
+
+- Java 21
+- Spring Boot 3.5.16
+- Maven 3.9
+- Docker multi-stage
+- GitHub Actions
+- JUnit 5
+- PostgreSQL 16
+
+
+
+
+
 ## Equipo
 
 **TEDE-SOFT**
