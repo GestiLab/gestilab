@@ -162,7 +162,7 @@ El job `docker-build` construye las imágenes de ambos servicios cuando las prue
 
 ### Protección de la rama principal
 
-La rama `main` está protegida mediante un *ruleset* de GitHub (`protección-main`, *Settings → Rules*). Exige integrar por Pull Request, que el job `test` termine satisfactoriamente con la rama al día respecto a `main`, y prohíbe borrar la rama y reescribir su historia (*force push*). El número de aprobaciones requeridas está configurado en 0; la revisión por pares sigue siendo parte del flujo de trabajo del equipo. Los pushes a otras ramas no se bloquean: ahí el CI solo informa el resultado.
+La rama `main` está protegida mediante un *ruleset* de GitHub (`protección-main`, *Settings → Rules*). Exige integrar por Pull Request, que el job `test` termine satisfactoriamente con la rama al día respecto a `main`, y prohíbe borrar la rama y reescribir su historia (*force push*). El número de aprobaciones requeridas está configurado en 1; la revisión por pares sigue siendo parte del flujo de trabajo del equipo. Los pushes a otras ramas no se bloquean: ahí el CI solo informa el resultado.
 
 ### Evidencias de GitHub Actions
 
