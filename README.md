@@ -162,7 +162,7 @@ El job `docker-build` construye las imágenes de ambos servicios cuando las prue
 
 ### Protección de la rama principal
 
-Se recomienda configurar en GitHub (*Settings → Branches*) una regla de protección para `main` que exija Pull Request, aprobación de un integrante del equipo y ejecución satisfactoria del job `test` antes de integrar cambios. Esta regla es configuración del repositorio y todavía no está activada.
+La rama `main` está protegida mediante un *ruleset* de GitHub (`protección-main`, *Settings → Rules*). Exige integrar por Pull Request, que el job `test` termine satisfactoriamente con la rama al día respecto a `main`, y prohíbe borrar la rama y reescribir su historia (*force push*). El número de aprobaciones requeridas está configurado en 1; la revisión por pares sigue siendo parte del flujo de trabajo del equipo. Los pushes a otras ramas no se bloquean: ahí el CI solo informa el resultado.
 
 ### Evidencias de GitHub Actions
 
@@ -180,7 +180,9 @@ Esta rama de ensayo no debe integrarse en `main`.
 
 **Ejecución exitosa en main (CA-6):**
 
-PENDIENTE: agregar el enlace directo a la ejecución verde después de integrar el Pull Request.
+https://github.com/GestiLab/gestilab/actions/runs/41768866853
+
+Ejecución del workflow `CI - GestiLab` sobre `main` con todo integrado (commit `cfd842b`): los jobs `test` y `docker-build` de ambos servicios terminaron en verde.
 
 ### Tecnologías utilizadas
 

@@ -1,11 +1,10 @@
 
 name: CI - GestiLab
 
-# Ejecutar en pull requests y en pushes a main.
-# Los pushes a ramas con PR abierto ya los cubre el evento pull_request.
+# CA-4: ejecutar en cada push a cualquier rama (también en ramas de ensayo
+# sin PR, como la del CA-5) y en cada pull request.
 on:
   push:
-    branches: [main]
   pull_request:
 
 # Cancelar ejecuciones obsoletas de la misma rama o PR
