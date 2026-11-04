@@ -1,4 +1,3 @@
-
 # Etapa 1: compilar prestamos-service
 FROM maven:3.9-eclipse-temurin-21-alpine AS build
 
@@ -10,7 +9,7 @@ RUN mvn -B -ntp dependency:go-offline
 
 COPY src ./src
 
-RUN mvn -B -ntp clean package -DskipTests
+RUN mvn -B -ntp package -DskipTests
 
 # Etapa 2: ejecutar sin herramientas de compilacion
 FROM eclipse-temurin:21-jre-alpine

@@ -1,4 +1,3 @@
-
 # Etapa 1: compilar la aplicacion con Maven y Java 21
 FROM maven:3.9-eclipse-temurin-21-alpine AS build
 
@@ -14,7 +13,7 @@ COPY src ./src
 
 # Compilamos el JAR
 # Las pruebas se ejecutan en GitHub Actions
-RUN mvn -B -ntp clean package -DskipTests
+RUN mvn -B -ntp package -DskipTests
 
 # Etapa 2: imagen final solo con Java
 FROM eclipse-temurin:21-jre-alpine

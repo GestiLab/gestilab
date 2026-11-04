@@ -138,6 +138,14 @@ Se comprobó el funcionamiento de ambos microservicios mediante Spring Boot Actu
 | Inventario    | `http://localhost:8081/salud` | HTTP 200 - UP |
 | Préstamos     | `http://localhost:8091/salud` | HTTP 200 - UP |
 
+**Requisito:** `/salud` incluye la conexión a PostgreSQL, por lo que el contenedor necesita una base de datos accesible. Por defecto la aplicación apunta a `localhost:15433` (inventario) o `localhost:15434` (préstamos); en un contenedor hay que indicar la conexión con variables de entorno:
+
+```bash
+docker run --rm -e DB_URL=jdbc:postgresql://<host>:5432/inventario_db \
+  -e DB_USERNAME=<usuario> -e DB_PASSWORD=<clave> \
+  -p 8080:8080 -p 8081:8081 gestilab/inventario-service:local
+```
+
 ### Pruebas automatizadas
 
 GitHub Actions ejecuta automáticamente el workflow `CI - GestiLab` en cada push y pull request.
@@ -150,11 +158,11 @@ El job `test` compila ambos servicios y ejecuta sus pruebas mediante Maven.
 - Préstamos: 7 pruebas aprobadas.
 - Total: 12 pruebas aprobadas, sin fallos ni errores.
 
-El job `docker-build` construye las imágenes de ambos servicios cuando las pruebas finalizan correctamente. Las imágenes no se publican en ningún registro.
+El job `docker-build` construye las imágenes de ambos servicios cuando las pruebas finalizan correctamente, levanta cada contenedor contra un PostgreSQL de servicio y verifica que `/salud` responda. Las imágenes no se publican en ningún registro.
 
 ### Protección de la rama principal
 
-La rama `main` cuenta con una regla de protección que exige Pull Request, aprobación de un integrante del equipo y ejecución satisfactoria del job `test` antes de integrar cambios.
+Se recomienda configurar en GitHub (*Settings → Branches*) una regla de protección para `main` que exija Pull Request, aprobación de un integrante del equipo y ejecución satisfactoria del job `test` antes de integrar cambios. Esta regla es configuración del repositorio y todavía no está activada.
 
 ### Evidencias de GitHub Actions
 
