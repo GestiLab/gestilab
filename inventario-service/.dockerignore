@@ -1,0 +1,15 @@
+
+target/
+.git/
+.gitignore
+.env
+.env.*
+.idea/
+.vscode/
+*.iml
+*.log
+README.md
+compose.yml
+mvnw
+mvnw.cmd
+.mvn/
