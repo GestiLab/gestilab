@@ -115,4 +115,23 @@ class TipoEquipoTest {
         assertThat(tipo.getDuracionMaximaDias()).isEqualTo(7);
         assertThat(tipo.isRequiereAutorizacion()).isFalse();
     }
+
+    @Test
+    @DisplayName("una duración sobre el tope permitido se rechaza")
+    void duracionSobreElTope() {
+        assertThatThrownBy(() -> TipoEquipo.crear("Multímetro", null, TipoEquipo.DURACION_MAXIMA_PERMITIDA_DIAS + 1, false))
+                .isInstanceOf(ReglaNegocioException.class)
+                .hasMessageContaining("365");
+        assertThat(TipoEquipo.crear("Multímetro", null, TipoEquipo.DURACION_MAXIMA_PERMITIDA_DIAS, false)
+                .calcularFechaDevolucion(LocalDate.of(2026, 1, 1))).isEqualTo(LocalDate.of(2027, 1, 1));
+    }
+
+    @Test
+    @DisplayName("nombre y descripción se guardan sin espacios sobrantes")
+    void recortaEspacios() {
+        TipoEquipo tipo = TipoEquipo.crear("  Multímetro  ", "  desc  ", 7, false);
+
+        assertThat(tipo.getNombre()).isEqualTo("Multímetro");
+        assertThat(tipo.getDescripcion()).isEqualTo("desc");
+    }
 }

@@ -2,6 +2,7 @@ package com.tedesoft.inventarioservice.domain.services;
 
 import com.tedesoft.inventarioservice.domain.entities.TipoEquipo;
 import com.tedesoft.inventarioservice.domain.exception.RecursoNoEncontradoException;
+import com.tedesoft.inventarioservice.domain.exception.ReglaNegocioException;
 import com.tedesoft.inventarioservice.domain.repositories.TipoEquipoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +24,12 @@ public class TipoEquipoService {
 
     public TipoEquipo crear(String nombre, String descripcion, int duracionMaximaDias,
                             boolean requiereAutorizacion) {
-        return repository.save(TipoEquipo.crear(nombre, descripcion, duracionMaximaDias, requiereAutorizacion));
+        // Se crea primero: el dominio valida y normaliza (strip) el nombre antes de buscar duplicados
+        TipoEquipo nuevo = TipoEquipo.crear(nombre, descripcion, duracionMaximaDias, requiereAutorizacion);
+        if (repository.existsByNombreIgnoreCase(nuevo.getNombre())) {
+            throw nombreDuplicado(nuevo.getNombre());
+        }
+        return repository.save(nuevo);
     }
 
     @Transactional(readOnly = true)
@@ -34,8 +40,17 @@ public class TipoEquipoService {
     public TipoEquipo actualizar(Long id, String nombre, String descripcion, int duracionMaximaDias,
                                  boolean requiereAutorizacion) {
         TipoEquipo tipo = buscar(id);
+        // Se consulta antes de modificar la entidad gestionada para no forzar un flush con datos a medias
+        if (nombre != null && !nombre.isBlank()
+                && repository.existsByNombreIgnoreCaseAndIdNot(nombre.strip(), id)) {
+            throw nombreDuplicado(nombre.strip());
+        }
         tipo.actualizar(nombre, descripcion, duracionMaximaDias, requiereAutorizacion);
-        return repository.save(tipo);
+        return tipo;
+    }
+
+    private ReglaNegocioException nombreDuplicado(String nombre) {
+        return new ReglaNegocioException("Ya existe un tipo de equipo con el nombre \"" + nombre + "\"");
     }
 
     private TipoEquipo buscar(Long id) {

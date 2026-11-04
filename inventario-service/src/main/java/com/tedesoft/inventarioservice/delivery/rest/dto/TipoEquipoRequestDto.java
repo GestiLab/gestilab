@@ -1,5 +1,6 @@
 package com.tedesoft.inventarioservice.delivery.rest.dto;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -17,6 +18,7 @@ public record TipoEquipoRequestDto(
 
         @NotNull(message = "La duración máxima es obligatoria")
         @Positive(message = "La duración máxima debe ser mayor que cero")
+        @Max(value = 365, message = "La duración máxima no puede superar 365 días")
         Integer duracionMaximaDias,
 
         @NotNull(message = "Debe indicar si requiere autorización")

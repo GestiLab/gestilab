@@ -59,6 +59,17 @@ class TipoEquipoControllerTest {
     }
 
     @Test
+    @DisplayName("GET con un id no numérico responde 400 con el formato común, no 500")
+    void idNoNumerico() throws Exception {
+        mockMvc.perform(get(RUTA + "/abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.errores.id").exists());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
     @DisplayName("POST crea el tipo con 201, Location y los datos guardados")
     void crearMultimetro() throws Exception {
         var request = new TipoEquipoRequestDto("Multímetro", "Mide voltaje y corriente", 7, false);
@@ -112,7 +123,8 @@ class TipoEquipoControllerTest {
                 Arguments.of("nombre en blanco", cuerpo("   ", true, 7), "nombre"),
                 Arguments.of("duración cero", cuerpo("Multímetro", true, 0), "duracionMaximaDias"),
                 Arguments.of("duración negativa", cuerpo("Multímetro", true, -3), "duracionMaximaDias"),
-                Arguments.of("sin duración", cuerpo("Multímetro", true, null), "duracionMaximaDias")
+                Arguments.of("sin duración", cuerpo("Multímetro", true, null), "duracionMaximaDias"),
+                Arguments.of("duración sobre el tope", cuerpo("Multímetro", true, 366), "duracionMaximaDias")
         );
     }
 

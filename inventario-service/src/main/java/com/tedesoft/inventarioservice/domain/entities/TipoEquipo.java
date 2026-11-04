@@ -27,11 +27,14 @@ import java.util.Objects;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TipoEquipo {
 
+    /** Tope razonable: evita fechas de devolución fuera del rango de LocalDate. */
+    public static final int DURACION_MAXIMA_PERMITIDA_DIAS = 365;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "nombre", nullable = false, length = 100)
+    @Column(name = "nombre", nullable = false, unique = true, length = 100)
     private String nombre;
 
     @Column(name = "descripcion", length = 500)
@@ -77,8 +80,12 @@ public class TipoEquipo {
         if (duracionMaximaDias <= 0) {
             throw new ReglaNegocioException("La duración máxima debe ser mayor que cero");
         }
-        this.nombre = nombre;
-        this.descripcion = descripcion;
+        if (duracionMaximaDias > DURACION_MAXIMA_PERMITIDA_DIAS) {
+            throw new ReglaNegocioException(
+                    "La duración máxima no puede superar " + DURACION_MAXIMA_PERMITIDA_DIAS + " días");
+        }
+        this.nombre = nombre.strip();
+        this.descripcion = descripcion == null ? null : descripcion.strip();
         this.duracionMaximaDias = duracionMaximaDias;
         this.requiereAutorizacion = requiereAutorizacion;
     }
