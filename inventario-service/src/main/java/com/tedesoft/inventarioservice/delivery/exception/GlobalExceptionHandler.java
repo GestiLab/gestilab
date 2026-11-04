@@ -4,6 +4,7 @@ import com.tedesoft.inventarioservice.domain.exception.RecursoNoEncontradoExcept
 import com.tedesoft.inventarioservice.domain.exception.ReglaNegocioException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -11,6 +12,7 @@ import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -42,6 +44,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> jsonIlegible(HttpMessageNotReadableException ex) {
         return construir(HttpStatus.BAD_REQUEST, "El cuerpo de la petición no es un JSON válido", null);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> parametroInvalido(MethodArgumentTypeMismatchException ex) {
+        Map<String, String> errores = Map.of(ex.getName(), "El valor no tiene el formato esperado");
+        return construir(HttpStatus.BAD_REQUEST, "Parámetro de ruta inválido", errores);
+    }
+
+    // Red de seguridad ante la restricción única de la BD (dos peticiones simultáneas con el mismo nombre)
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiErrorResponse> integridad(DataIntegrityViolationException ex) {
+        log.warn("Violación de integridad: {}", ex.getMostSpecificCause().getMessage());
+        return construir(HttpStatus.CONFLICT, "El dato ya existe o viola una restricción de integridad", null);
     }
 
     @ExceptionHandler(Exception.class)
