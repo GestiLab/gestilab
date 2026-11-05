@@ -10,4 +10,6 @@ public interface IPrestamoDao extends JpaRepository<Prestamo, Long> {
 
     /** ¿La unidad ya está en un préstamo que no se ha devuelto? */
     boolean existsByUnidadIdAndEstadoIn(Long unidadId, Collection<EstadoPrestamo> estados);
+
+    long countBySolicitanteIdAndEstadoIn(String solicitanteId, Collection<EstadoPrestamo> estados);
 }
