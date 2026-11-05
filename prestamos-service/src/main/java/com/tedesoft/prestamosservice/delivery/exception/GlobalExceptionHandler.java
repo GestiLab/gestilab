@@ -1,5 +1,6 @@
 package com.tedesoft.prestamosservice.delivery.exception;
 
+import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleException;
 import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;
 import org.slf4j.Logger;
@@ -29,6 +30,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> reglaNegocio(ReglaNegocioException ex) {
         log.warn("Regla de negocio: {}", ex.getMessage());
         return construir(HttpStatus.CONFLICT, ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(DependenciaNoDisponibleException.class)
+    public ResponseEntity<ApiErrorResponse> dependenciaNoDisponible(DependenciaNoDisponibleException ex) {
+        log.warn("Dependencia no disponible: {}", ex.getMessage());
+        return construir(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
