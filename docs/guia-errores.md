@@ -18,7 +18,7 @@ Toda respuesta de error es un JSON con estos campos:
 | `error` | texto | siempre | Frase estándar del código HTTP (`Not Found`, `Conflict`, `Bad Request`...). |
 | `mensaje` | texto | siempre | Explicación legible para la persona que consume la API. |
 | `timestamp` | texto | siempre | Fecha y hora del servidor en ISO-8601, **sin zona horaria** (por ejemplo `2026-11-01T10:40:29.843437`). |
-| `errores` | objeto | **solo en 400 de validación** | Mapa `campo → mensaje`. En los demás casos el campo no aparece (no se envía como `null`). |
+| `errores` | objeto | **solo en 400 de validación** (cuerpo o parámetro de ruta) | Mapa `campo → mensaje`. En los demás casos el campo no aparece (no se envía como `null`). |
 
 Reglas del formato:
 - El cuerpo **nunca** incluye stack trace, nombres de clases ni detalles internos.
@@ -43,8 +43,9 @@ Reglas del formato:
 | 409 | Se viola una regla de negocio. | `ReglaNegocioException` | El texto con que se lanzó la excepción. |
 | 400 | El cuerpo no cumple las validaciones (`@Valid`). | `MethodArgumentNotValidException` | `Datos de entrada inválidos` (más `errores`). |
 | 400 | El cuerpo no es un JSON legible. | `HttpMessageNotReadableException` | `El cuerpo de la petición no es un JSON válido` |
+| 400 | Un parámetro de la ruta no tiene el formato esperado (por ejemplo `/prestamos/abc`). | `MethodArgumentTypeMismatchException` | `Parámetro de ruta inválido` (más `errores`). |
 | 404, 405, ... | Spring ya sabe qué código corresponde: por ejemplo, la ruta no existe (404) o el método no está permitido (405). | Excepciones que implementan `ErrorResponse` | La frase estándar del código (igual que `error`). |
-| 503 | `prestamos-service` no logra respuesta de `inventario-service` (sin respuesta, tiempo agotado o 5xx). | *Pendiente de implementar* (excepción propuesta: `DependenciaNoDisponibleException`) | `El servicio de inventario no está disponible. Intenta más tarde.` |
+| 503 | `prestamos-service` no logra respuesta de `inventario-service` (sin respuesta, tiempo agotado, 5xx o una respuesta que incumple el contrato). | `DependenciaNoDisponibleException` (implementada en `prestamos-service`) | El texto con que se lanzó la excepción: `inventario no disponible` (así lo exige SCRUM-14, CA-5). |
 | 500 | Cualquier otra excepción no prevista. | `Exception` | `Error inesperado. Por favor contacta al administrador.` |
 
 Cómo usarlo desde el código:
@@ -114,7 +115,7 @@ Lo devuelve `prestamos-service` cuando su llamada a `inventario-service` falla. 
 {
   "status": 503,
   "error": "Service Unavailable",
-  "mensaje": "El servicio de inventario no está disponible. Intenta más tarde.",
+  "mensaje": "inventario no disponible",
   "timestamp": "2026-11-01T10:40:29.843437"
 }
 ```

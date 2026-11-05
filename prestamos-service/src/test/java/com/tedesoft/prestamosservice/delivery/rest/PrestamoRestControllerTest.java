@@ -7,6 +7,9 @@ import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;
 import com.tedesoft.prestamosservice.domain.services.IPrestamoService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -15,9 +18,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.endsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -110,6 +115,57 @@ class PrestamoRestControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errores.unidadId").value("La unidad es obligatoria"))
                 .andExpect(jsonPath("$.errores.solicitanteId").value("El solicitante es obligatorio"));
+
+        verifyNoInteractions(prestamoService);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("cuerposInvalidos")
+    @DisplayName("POST — cuerpo que no cumple el contrato → 400 y no llama al servicio")
+    void solicitar_cuerpoInvalido_debeRetornar400SinLlamarAlServicio(String caso, String cuerpo) throws Exception {
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(cuerpo))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.trace").doesNotExist());
+
+        verifyNoInteractions(prestamoService);
+    }
+
+    static Stream<Arguments> cuerposInvalidos() {
+        return Stream.of(
+                Arguments.of("unidadId cero", "{\"unidadId\": 0, \"solicitanteId\": \"ana\"}"),
+                Arguments.of("unidadId negativo", "{\"unidadId\": -1, \"solicitanteId\": \"ana\"}"),
+                Arguments.of("unidadId decimal no se trunca", "{\"unidadId\": 1.5, \"solicitanteId\": \"ana\"}"),
+                Arguments.of("unidadId decimal 14.9 no presta la 14", "{\"unidadId\": 14.9, \"solicitanteId\": \"ana\"}"),
+                Arguments.of("unidadId como texto", "{\"unidadId\": \"14\", \"solicitanteId\": \"ana\"}"),
+                Arguments.of("basura después del JSON", "{\"unidadId\": 14, \"solicitanteId\": \"ana\"} xxx"),
+                Arguments.of("solicitanteId de 101 caracteres",
+                        "{\"unidadId\": 14, \"solicitanteId\": \"" + "a".repeat(101) + "\"}"),
+                Arguments.of("solicitanteId solo con espacio Unicode (U+2003)",
+                        "{\"unidadId\": 14, \"solicitanteId\": \"\\u2003\"}"),
+                Arguments.of("solicitanteId con carácter nulo",
+                        "{\"unidadId\": 14, \"solicitanteId\": \"ana\\u0000\"}"));
+    }
+
+    @Test
+    @DisplayName("POST — solicitante de 100 caracteres con acentos y espacios alrededor → 201 y se recorta")
+    void solicitar_solicitanteEnElLimite_debeAceptarseYRecortarse() throws Exception {
+        String nombre = "á".repeat(100);
+        when(prestamoService.solicitar(14L, nombre)).thenReturn(prestamoGuardado());
+
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"unidadId\": 14, \"solicitanteId\": \"  " + nombre + "  \"}"))
+                .andExpect(status().isCreated());
+
+        verify(prestamoService).solicitar(14L, nombre);
+    }
+
+    @Test
+    @DisplayName("POST — Accept distinto de JSON → 406 y el préstamo NO se crea")
+    void solicitar_acceptNoJson_debeRetornar406SinCrearPrestamo() throws Exception {
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.TEXT_PLAIN).content(CUERPO))
+                .andExpect(status().isNotAcceptable());
 
         verifyNoInteractions(prestamoService);
     }

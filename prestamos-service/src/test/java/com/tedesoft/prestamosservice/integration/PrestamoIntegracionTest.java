@@ -4,6 +4,7 @@ import com.tedesoft.prestamosservice.domain.clients.EstadoUnidad;
 import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;
 import com.tedesoft.prestamosservice.domain.clients.UnidadInventario;
 import com.tedesoft.prestamosservice.domain.repositories.IPrestamoDao;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,7 +61,9 @@ class PrestamoIntegracionTest {
     private IInventarioClient inventarioClient;
 
     @BeforeEach
+    @AfterEach
     void limpiarBase() {
+        // También al terminar: la base H2 en memoria se comparte con otras clases de prueba
         prestamoDao.deleteAll();
     }
 
@@ -84,6 +87,45 @@ class PrestamoIntegracionTest {
                 .andExpect(jsonPath("$.duracionAplicadaDias").value(7))
                 .andExpect(jsonPath("$.fechaSolicitud").value("2026-11-02"))
                 .andExpect(jsonPath("$.solicitanteId").value("ana"));
+    }
+
+    @Test
+    @DisplayName("CA-2 — si el tipo cambia a 3 días después, el préstamo ya creado sigue con 7 días y su fecha")
+    void consultar_trasCambiarElTipo_debeConservarLaDuracionAplicada() throws Exception {
+        when(inventarioClient.obtenerUnidad(14L))
+                .thenReturn(new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, 7, false));
+
+        MvcResult creado = mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"unidadId\": 14, \"solicitanteId\": \"ana\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        // El tipo cambia en inventario: ahora presta por 3 días
+        when(inventarioClient.obtenerUnidad(14L))
+                .thenReturn(new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, 3, false));
+
+        mockMvc.perform(get(creado.getResponse().getHeader("Location")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.duracionAplicadaDias").value(7))
+                .andExpect(jsonPath("$.fechaDevolucionPrevista").value("2026-11-09"));
+    }
+
+    @Test
+    @DisplayName("Una misma unidad no se presta a dos personas mientras el primer préstamo siga activo")
+    void solicitar_unidadYaSolicitada_debeRechazarAlSegundo() throws Exception {
+        when(inventarioClient.obtenerUnidad(14L))
+                .thenReturn(new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, 7, false));
+
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"unidadId\": 14, \"solicitanteId\": \"ana\"}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"unidadId\": 14, \"solicitanteId\": \"luis\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value("La unidad 14 ya tiene un préstamo activo"));
+
+        assertThat(prestamoDao.count()).isEqualTo(1);
     }
 
     @Test

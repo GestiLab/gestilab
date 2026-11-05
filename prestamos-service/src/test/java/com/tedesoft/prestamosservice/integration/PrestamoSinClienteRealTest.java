@@ -28,7 +28,7 @@ class PrestamoSinClienteRealTest {
     void solicitar_sinClienteReal_debeRetornar503() throws Exception {
         mockMvc.perform(post("/api/v1/prestamos-service/prestamos")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unidadId\": 14, \"solicitanteId\": \"ana\"}"))
+                        .content("{\"unidadId\": 14, \"solicitanteId\": \"persona-sin-cliente-real\"}"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.mensaje").value("inventario no disponible"));
     }

@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 
@@ -37,5 +38,25 @@ class IPrestamoDaoTest {
         assertThat(leido.getEstado()).isEqualTo(EstadoPrestamo.SOLICITADO);
         assertThat(leido.getDuracionAplicadaDias()).isEqualTo(7);
         assertThat(leido.getFechaPrevista()).isEqualTo(LocalDate.of(2026, 11, 9));
+    }
+
+    @Test
+    @DisplayName("existsByUnidadIdAndEstadoIn — solo cuenta préstamos activos de esa unidad")
+    void existeActivoDeLaUnidad_debeIgnorarDevueltosYOtrasUnidades() {
+        LocalDate hoy = LocalDate.of(2026, 11, 2);
+        Prestamo devuelto = Prestamo.solicitar(14L, 2L, "ana", 7, hoy);
+        ReflectionTestUtils.setField(devuelto, "estado", EstadoPrestamo.DEVUELTO);
+        em.persist(devuelto);
+        em.persist(Prestamo.solicitar(15L, 2L, "ana", 7, hoy));
+        em.flush();
+
+        assertThat(prestamoDao.existsByUnidadIdAndEstadoIn(14L, EstadoPrestamo.activos())).isFalse();
+        assertThat(prestamoDao.existsByUnidadIdAndEstadoIn(15L, EstadoPrestamo.activos())).isTrue();
+
+        Prestamo nuevo = Prestamo.solicitar(14L, 2L, "luis", 7, hoy);
+        em.persist(nuevo);
+        em.flush();
+
+        assertThat(prestamoDao.existsByUnidadIdAndEstadoIn(14L, EstadoPrestamo.activos())).isTrue();
     }
 }

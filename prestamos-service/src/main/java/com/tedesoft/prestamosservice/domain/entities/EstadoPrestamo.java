@@ -1,11 +1,15 @@
 package com.tedesoft.prestamosservice.domain.entities;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * Estado explícito de un préstamo.
  *
  * <p>El retraso NO es un estado: se deriva de la fecha prevista y del reloj inyectado (D-04).
- * La autorización previa (PENDIENTE_AUTORIZACION, P-01) aún no está decidida; cuando se decida se
- * agrega aquí sin tocar las demás reglas.
+ * La autorización previa (PENDIENTE_AUTORIZACION, P-01) aún no está decidida. Agregar un estado exige
+ * una migración: con {@code ddl-auto=update} Hibernate no actualiza el CHECK que ya tiene la tabla
+ * {@code prestamo} en una base existente, así que el nuevo valor sería rechazado hasta reemplazarlo.
  */
 public enum EstadoPrestamo {
 
@@ -25,5 +29,10 @@ public enum EstadoPrestamo {
     /** Un préstamo activo es el que aún no se ha devuelto. */
     public boolean estaActivo() {
         return activo;
+    }
+
+    /** Estados que ocupan cupo; se derivan de {@link #estaActivo()} para no repetir la regla. */
+    public static List<EstadoPrestamo> activos() {
+        return Arrays.stream(values()).filter(EstadoPrestamo::estaActivo).toList();
     }
 }

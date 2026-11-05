@@ -14,7 +14,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -23,6 +25,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -78,41 +81,92 @@ class PrestamoServiceImplTest {
     }
 
     @Test
-    @DisplayName("solicitar — guarda la duración aplicada aunque el tipo cambie después")
+    @DisplayName("solicitar — guarda la duración que informó inventario en ese momento")
     void solicitar_debeGuardarLaDuracionAplicada() {
         when(inventarioClient.obtenerUnidad(14L)).thenReturn(unidad(EstadoUnidad.DISPONIBLE, 7));
         guardarDevuelveElMismoPrestamo();
 
-        Prestamo prestamo = servicio.solicitar(14L, "ana");
-
-        // Si luego el tipo pasa a 3 días, este préstamo conserva sus 7 días y su fecha
-        assertThat(prestamo.getDuracionAplicadaDias()).isEqualTo(7);
+        assertThat(servicio.solicitar(14L, "ana").getDuracionAplicadaDias()).isEqualTo(7);
+        // Que el préstamo la conserve aunque el tipo cambie después (CA-2) lo ejerce PrestamoIntegracionTest
     }
 
-    @Test
-    @DisplayName("solicitar — tipo nuevo de 3 días → devolución a 3 días con el mismo código (RQ-01)")
-    void solicitar_tipoNuevoDeTresDias_debeAplicarSuReglaSinCambiarCodigo() {
-        when(inventarioClient.obtenerUnidad(30L))
-                .thenReturn(new UnidadInventario(30L, EstadoUnidad.DISPONIBLE, 9L, 3, true));
+    @ParameterizedTest(name = "mismo tipo con {0} días → devolución el {1}")
+    @CsvSource({"3,2026-11-05", "5,2026-11-07", "7,2026-11-09", "30,2026-12-02", "365,2027-11-02"})
+    @DisplayName("solicitar — la fecha sale de la duración que informa inventario, no de una tabla por tipo (RQ-01)")
+    void solicitar_cualquierDuracionDelTipo_debeAplicarlaSinCambiarCodigo(int duracion, LocalDate esperada) {
+        when(inventarioClient.obtenerUnidad(14L))
+                .thenReturn(new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, duracion, true));
         guardarDevuelveElMismoPrestamo();
 
-        Prestamo prestamo = servicio.solicitar(30L, "ana");
+        Prestamo prestamo = servicio.solicitar(14L, "ana");
 
-        assertThat(prestamo.getFechaPrevista()).isEqualTo(LocalDate.of(2026, 11, 5));
-        assertThat(prestamo.getDuracionAplicadaDias()).isEqualTo(3);
-        assertThat(prestamo.getTipoId()).isEqualTo(9L);
+        assertThat(prestamo.getFechaPrevista()).isEqualTo(esperada);
+        assertThat(prestamo.getDuracionAplicadaDias()).isEqualTo(duracion);
+        assertThat(prestamo.getTipoId()).isEqualTo(2L);
     }
 
     @ParameterizedTest
-    @EnumSource(value = EstadoUnidad.class, names = {"PRESTADA", "EN_REVISION", "FUERA_DE_SERVICIO"})
-    @DisplayName("solicitar — unidad no disponible → ReglaNegocioException y no crea préstamo")
-    void solicitar_unidadNoDisponible_debeRechazarSinCrearPrestamo(EstadoUnidad estado) {
+    @CsvSource({"PRESTADA,prestada", "EN_REVISION,en revisión", "FUERA_DE_SERVICIO,fuera de servicio"})
+    @DisplayName("solicitar — unidad no disponible → 409 con el estado legible y no crea préstamo")
+    void solicitar_unidadNoDisponible_debeRechazarExplicandoElEstado(EstadoUnidad estado, String texto) {
         when(inventarioClient.obtenerUnidad(14L)).thenReturn(unidad(estado, 7));
 
         assertThatThrownBy(() -> servicio.solicitar(14L, "ana"))
                 .isInstanceOf(ReglaNegocioException.class)
-                .hasMessageContaining("no está disponible");
+                .hasMessage("La unidad 14 no está disponible (estado: " + texto + ")");
         verify(prestamoDao, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("solicitar — unidad ya en un préstamo activo → 409 aunque inventario la vea disponible")
+    void solicitar_unidadConPrestamoActivo_debeRechazarSinCrearPrestamo() {
+        when(inventarioClient.obtenerUnidad(14L)).thenReturn(unidad(EstadoUnidad.DISPONIBLE, 7));
+        when(prestamoDao.existsByUnidadIdAndEstadoIn(14L, EstadoPrestamo.activos())).thenReturn(true);
+
+        assertThatThrownBy(() -> servicio.solicitar(14L, "luis"))
+                .isInstanceOf(ReglaNegocioException.class)
+                .hasMessage("La unidad 14 ya tiene un préstamo activo");
+        verify(prestamoDao, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("solicitar — unidad cuyo último préstamo ya se devolvió → se puede volver a solicitar")
+    void solicitar_unidadSinPrestamoActivo_debeCrearPrestamo() {
+        when(inventarioClient.obtenerUnidad(14L)).thenReturn(unidad(EstadoUnidad.DISPONIBLE, 7));
+        when(prestamoDao.existsByUnidadIdAndEstadoIn(14L, EstadoPrestamo.activos())).thenReturn(false);
+        guardarDevuelveElMismoPrestamo();
+
+        assertThat(servicio.solicitar(14L, "luis").getSolicitanteId()).isEqualTo("luis");
+    }
+
+    @Test
+    @DisplayName("solicitar — respuesta de inventario nula → 503, no un error interno")
+    void solicitar_respuestaNula_debeTratarseComoDependenciaCaida() {
+        when(inventarioClient.obtenerUnidad(14L)).thenReturn(null);
+
+        assertThatThrownBy(() -> servicio.solicitar(14L, "ana"))
+                .isInstanceOf(DependenciaNoDisponibleException.class);
+        verify(prestamoDao, never()).save(any());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("respuestasQueIncumplenElContrato")
+    @DisplayName("solicitar — respuesta de inventario que incumple el contrato → 503 y no crea préstamo")
+    void solicitar_respuestaIncoherente_debeTratarseComoDependenciaCaida(String caso, UnidadInventario respuesta) {
+        when(inventarioClient.obtenerUnidad(14L)).thenReturn(respuesta);
+
+        assertThatThrownBy(() -> servicio.solicitar(14L, "ana"))
+                .isInstanceOf(DependenciaNoDisponibleException.class)
+                .hasMessage("inventario respondió con datos inválidos");
+        verify(prestamoDao, never()).save(any());
+    }
+
+    static Stream<Arguments> respuestasQueIncumplenElContrato() {
+        return Stream.of(
+                Arguments.of("estado nulo", new UnidadInventario(14L, null, 2L, 7, false)),
+                Arguments.of("tipo nulo", new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, null, 7, false)),
+                Arguments.of("duración cero", new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, 0, false)),
+                Arguments.of("duración negativa", new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, -1, false)));
     }
 
     @Test

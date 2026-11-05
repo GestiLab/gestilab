@@ -1,5 +1,6 @@
 package com.tedesoft.prestamosservice.domain.entities;
 
+import jakarta.persistence.Column;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -56,6 +57,28 @@ class PrestamoTest {
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> Prestamo.solicitar(14L, 2L, "ana", 7, null))
                 .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("solicitar — duración negativa → IllegalArgumentException")
+    void solicitar_duracionNegativa_debeLanzarExcepcion() {
+        assertThatThrownBy(() -> Prestamo.solicitar(14L, 2L, "ana", -1, HOY))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("solicitar — tipo nulo → NullPointerException")
+    void solicitar_tipoNulo_debeLanzarExcepcion() {
+        assertThatThrownBy(() -> Prestamo.solicitar(14L, null, "ana", 7, HOY))
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("columna de estado — alcanza para PENDIENTE_AUTORIZACION (22 caracteres, P-01)")
+    void columnaDeEstado_debeAlcanzarParaEstadosLargos() throws NoSuchFieldException {
+        int largo = Prestamo.class.getDeclaredField("estado").getAnnotation(Column.class).length();
+
+        assertThat(largo).isGreaterThanOrEqualTo("PENDIENTE_AUTORIZACION".length());
     }
 
     @ParameterizedTest

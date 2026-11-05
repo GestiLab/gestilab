@@ -45,7 +45,8 @@ public class Prestamo {
     private String solicitanteId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "estado", nullable = false, length = 20)
+    // 30 y no 20: PENDIENTE_AUTORIZACION (22 caracteres, P-01) no cabría en una columna creada con 20
+    @Column(name = "estado", nullable = false, length = 30)
     private EstadoPrestamo estado;
 
     @Column(name = "duracion_aplicada_dias", nullable = false)
