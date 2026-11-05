@@ -3,6 +3,8 @@ package com.tedesoft.prestamosservice.integration;
 import com.tedesoft.prestamosservice.domain.clients.EstadoUnidad;
 import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;
 import com.tedesoft.prestamosservice.domain.clients.UnidadInventario;
+import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
+import com.tedesoft.prestamosservice.domain.entities.Prestamo;
 import com.tedesoft.prestamosservice.domain.repositories.IPrestamoDao;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +21,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultMatcher;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -139,5 +143,36 @@ class PrestamoIntegracionTest {
                 .andExpect(status().isConflict());
 
         assertThat(prestamoDao.count()).isZero();
+    }
+
+    private void solicitar(long unidadId, String solicitante, ResultMatcher esperado) throws Exception {
+        when(inventarioClient.obtenerUnidad(unidadId))
+                .thenReturn(new UnidadInventario(unidadId, EstadoUnidad.DISPONIBLE, 2L, 7, false));
+
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"unidadId\": " + unidadId + ", \"solicitanteId\": \"" + solicitante + "\"}"))
+                .andExpect(esperado);
+    }
+
+    @Test
+    @DisplayName("Tope — la cuarta se rechaza, otra persona no se afecta y devolver libera el cupo")
+    void tope_debeAplicarsePorPersonaYLiberarseAlDevolver() throws Exception {
+        solicitar(1L, "ana", status().isCreated());
+        solicitar(2L, "ana", status().isCreated());
+        solicitar(3L, "ana", status().isCreated());
+
+        solicitar(4L, "ana", status().isConflict());
+        assertThat(prestamoDao.count()).isEqualTo(3);
+
+        solicitar(5L, "luis", status().isCreated());
+
+        // La devolución real llega con SCRUM-19; aquí se simula cambiando el estado en la base
+        Prestamo primero = prestamoDao.findAll().stream()
+                .filter(p -> p.getSolicitanteId().equals("ana"))
+                .findFirst().orElseThrow();
+        ReflectionTestUtils.setField(primero, "estado", EstadoPrestamo.DEVUELTO);
+        prestamoDao.save(primero);
+
+        solicitar(4L, "ana", status().isCreated());
     }
 }
