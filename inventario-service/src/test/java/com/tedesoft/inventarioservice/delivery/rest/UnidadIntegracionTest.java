@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -22,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.net.URI;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -123,6 +125,27 @@ class UnidadIntegracionTest {
                                 new UnidadRequestDto("  mul-014 ", "DISPONIBLE", null, multimetro.getId()))))
                 .andExpect(status().isConflict());
 
+        assertThat(unidadRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("CA-2: el número se guarda en mayúsculas y así lo devuelve la consulta")
+    void numeroSeGuardaEnMayusculas() throws Exception {
+        String location = crear(new UnidadRequestDto(" mul-020 ", "DISPONIBLE", null, multimetro.getId()));
+
+        mockMvc.perform(get(URI.create(location)))
+                .andExpect(jsonPath("$.numeroInventario").value("MUL-020"));
+    }
+
+    @Test
+    @DisplayName("CA-2: la restricción única de la base también frena mul-777 frente a MUL-777 (carrera entre solicitudes)")
+    void restriccionUnicaIgnoraMayusculas() {
+        // Simula dos solicitudes simultáneas que ya pasaron la comprobación del servicio: solo la base las frena
+        unidadRepository.saveAndFlush(Unidad.crear(multimetro, "mul-777", EstadoUnidad.DISPONIBLE, null));
+
+        assertThatThrownBy(() -> unidadRepository.saveAndFlush(
+                Unidad.crear(multimetro, "MUL-777", EstadoUnidad.DISPONIBLE, null)))
+                .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(unidadRepository.count()).isEqualTo(1);
     }
 

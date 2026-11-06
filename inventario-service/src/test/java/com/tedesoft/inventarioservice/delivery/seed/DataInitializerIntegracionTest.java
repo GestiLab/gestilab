@@ -70,7 +70,10 @@ class DataInitializerIntegracionTest {
         Map<String, Long> porTipo = unidades.stream()
                 .collect(Collectors.groupingBy(u -> u.getTipo().getNombre(), Collectors.counting()));
         assertThat(porTipo).hasSize(3).allSatisfy((nombre, cantidad) -> assertThat(cantidad).isEqualTo(40L));
-        assertThat(unidades).extracting(Unidad::getEstado).contains(EstadoUnidad.values());
+        // PRESTADA no se siembra: ese estado solo llega por el evento de entrega (D-02)
+        assertThat(unidades).extracting(Unidad::getEstado)
+                .contains(EstadoUnidad.DISPONIBLE, EstadoUnidad.EN_REVISION, EstadoUnidad.FUERA_DE_SERVICIO)
+                .doesNotContain(EstadoUnidad.PRESTADA);
     }
 
     @Test

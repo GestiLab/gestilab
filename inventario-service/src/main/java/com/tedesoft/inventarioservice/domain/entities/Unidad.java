@@ -17,6 +17,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.Locale;
+
 /**
  * Unidad física del inventario (p. ej. "multímetro MUL-014"). Pertenece siempre a un {@link TipoEquipo},
  * que es quien dicta las reglas de préstamo: la unidad no las duplica (RQ-01, decisión D-01).
@@ -84,7 +86,9 @@ public class Unidad {
                     "El estado es obligatorio. Valores válidos: " + EstadoUnidad.permitidosComoTexto());
         }
         this.tipo = tipo;
-        this.numeroInventario = numeroInventario.strip();
+        // En mayúsculas: "mul-014" y "MUL-014" son la misma unidad, también para la restricción única de la
+        // base de datos, que distingue mayúsculas (dos solicitudes simultáneas no pueden crear ambas).
+        this.numeroInventario = numeroInventario.strip().toUpperCase(Locale.ROOT);
         this.estado = estado;
         this.observaciones = observaciones == null ? null : observaciones.strip();
     }

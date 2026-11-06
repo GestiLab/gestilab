@@ -26,4 +26,12 @@ public record UnidadRequestDto(
         @Positive(message = "El id del tipo de equipo debe ser mayor que cero")
         Long tipoEquipoId
 ) {
+
+    /**
+     * Recorta el número con {@code strip()} antes de validar: así {@code @NotBlank} rechaza (400) un número
+     * hecho solo de espacios Unicode, y {@code @Size} mide el largo que realmente se guarda.
+     */
+    public UnidadRequestDto {
+        numeroInventario = numeroInventario == null ? null : numeroInventario.strip();
+    }
 }

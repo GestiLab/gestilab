@@ -38,6 +38,16 @@ class UnidadTest {
     }
 
     @Test
+    @DisplayName("el número de inventario se guarda en mayúsculas: mul-014 y MUL-014 son la misma unidad")
+    void numeroSeGuardaEnMayusculas() {
+        Unidad creada = Unidad.crear(multimetro, " mul-014 ", EstadoUnidad.DISPONIBLE, null);
+        assertThat(creada.getNumeroInventario()).isEqualTo("MUL-014");
+
+        creada.actualizar(multimetro, "cam-002", EstadoUnidad.DISPONIBLE, null);
+        assertThat(creada.getNumeroInventario()).isEqualTo("CAM-002");
+    }
+
+    @Test
     @DisplayName("CA-3: editar al estado EN_REVISION lo refleja y deja de poder prestarse")
     void editarAEnRevision() {
         Unidad unidad = Unidad.crear(multimetro, "MUL-014", EstadoUnidad.DISPONIBLE, null);

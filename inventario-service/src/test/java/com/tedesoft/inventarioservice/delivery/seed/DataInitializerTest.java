@@ -71,8 +71,15 @@ class DataInitializerTest {
         List<Unidad> todas = unidadesGuardadas.getAllValues().stream().flatMap(List::stream).toList();
         assertThat(todas).hasSize(120);
         assertThat(todas).extracting(Unidad::getNumeroInventario).containsExactlyInAnyOrderElementsOf(numerosEsperados());
-        assertThat(todas).extracting(Unidad::getEstado).contains(EstadoUnidad.values());
-        assertThat(unidadesGuardadas.getAllValues()).allSatisfy(lote -> assertThat(lote).hasSize(40));
+        assertThat(todas).extracting(Unidad::getEstado)
+                .contains(EstadoUnidad.DISPONIBLE, EstadoUnidad.EN_REVISION, EstadoUnidad.FUERA_DE_SERVICIO)
+                .doesNotContain(EstadoUnidad.PRESTADA);
+        assertThat(unidadesGuardadas.getAllValues()).allSatisfy(lote -> {
+            assertThat(lote).hasSize(40);
+            assertThat(lote).filteredOn(u -> u.getEstado() == EstadoUnidad.DISPONIBLE).hasSize(36);
+            assertThat(lote).filteredOn(u -> u.getEstado() == EstadoUnidad.EN_REVISION).hasSize(2);
+            assertThat(lote).filteredOn(u -> u.getEstado() == EstadoUnidad.FUERA_DE_SERVICIO).hasSize(2);
+        });
     }
 
     @Test

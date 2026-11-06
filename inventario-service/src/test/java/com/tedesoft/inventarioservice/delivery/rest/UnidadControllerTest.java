@@ -278,4 +278,56 @@ class UnidadControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.mensaje").value("Unidad 999 no encontrada"));
     }
+
+    // ---------------------------------------------------------------- Ajustes de la revisión del PR #6
+
+    static Stream<Arguments> cuerposQueIncumplenElContrato() {
+        return Stream.of(
+                Arguments.of("tipoEquipoId decimal: no se trunca a otro tipo",
+                        "{\"numeroInventario\":\"MUL-901\",\"estado\":\"DISPONIBLE\",\"tipoEquipoId\":1.9}"),
+                Arguments.of("tipoEquipoId como texto",
+                        "{\"numeroInventario\":\"MUL-902\",\"estado\":\"DISPONIBLE\",\"tipoEquipoId\":\"1\"}"),
+                Arguments.of("basura después del JSON",
+                        "{\"numeroInventario\":\"MUL-903\",\"estado\":\"DISPONIBLE\",\"tipoEquipoId\":1} xxx"),
+                Arguments.of("número de inventario solo con espacio Unicode (U+2003)",
+                        "{\"numeroInventario\":\"\\u2003\",\"estado\":\"DISPONIBLE\",\"tipoEquipoId\":1}"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("cuerposQueIncumplenElContrato")
+    @DisplayName("un cuerpo que no cumple el contrato responde 400 y no llega al servicio")
+    void cuerpoQueIncumpleElContrato(String caso, String cuerpo) throws Exception {
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(cuerpo))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("un Accept que no es JSON responde 406 SIN crear la unidad")
+    void acceptNoJsonNoCreaLaUnidad() throws Exception {
+        mockMvc.perform(post(RUTA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.TEXT_PLAIN)
+                        .content(objectMapper.writeValueAsString(
+                                new UnidadRequestDto("MUL-014", "DISPONIBLE", null, 1L))))
+                .andExpect(status().isNotAcceptable());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("el largo máximo se mide sin los espacios laterales: 50 caracteres rodeados de espacios se aceptan")
+    void numeroEnElLimiteConEspacios() throws Exception {
+        String numero = "A".repeat(50);
+        when(service.crear(1L, numero, EstadoUnidad.DISPONIBLE, null))
+                .thenReturn(unidad(12L, numero, EstadoUnidad.DISPONIBLE, null));
+
+        mockMvc.perform(post(RUTA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new UnidadRequestDto("  " + numero + "  ", "DISPONIBLE", null, 1L))))
+                .andExpect(status().isCreated());
+    }
 }

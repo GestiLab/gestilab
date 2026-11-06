@@ -93,13 +93,16 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 
-    /** Reparto fijo por tipo: 30 disponibles, 6 prestadas, 2 en revisión y 2 fuera de servicio. */
+    /**
+     * Reparto fijo por tipo: 36 disponibles, 2 en revisión y 2 fuera de servicio.
+     *
+     * <p>No se siembra ninguna PRESTADA: ese estado solo llega por el evento de entrega (D-02). Una unidad
+     * sembrada como prestada no tendría préstamo en prestamos-service, así que nadie podría devolverla.
+     * Los estados no disponibles bastan para demostrar el filtro de disponibles (RF-03).
+     */
     private static EstadoUnidad estadoPara(int n) {
-        if (n <= 30) {
-            return EstadoUnidad.DISPONIBLE;
-        }
         if (n <= 36) {
-            return EstadoUnidad.PRESTADA;
+            return EstadoUnidad.DISPONIBLE;
         }
         if (n <= 38) {
             return EstadoUnidad.EN_REVISION;
@@ -109,10 +112,9 @@ public class DataInitializer implements CommandLineRunner {
 
     private static String observacionesPara(EstadoUnidad estado) {
         return switch (estado) {
-            case DISPONIBLE -> "Buen estado";
-            case PRESTADA -> "Unidad en uso (dato de demostración)";
             case EN_REVISION -> "Pendiente de revisión técnica";
             case FUERA_DE_SERVICIO -> "Daño reportado, no se puede prestar";
+            default -> "Buen estado";
         };
     }
 }
