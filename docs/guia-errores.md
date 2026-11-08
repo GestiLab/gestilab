@@ -44,7 +44,7 @@ Reglas del formato:
 | 400 | El cuerpo no cumple las validaciones (`@Valid`). | `MethodArgumentNotValidException` | `Datos de entrada inválidos` (más `errores`). |
 | 400 | El cuerpo no es un JSON legible. | `HttpMessageNotReadableException` | `El cuerpo de la petición no es un JSON válido` |
 | 404, 405, ... | Spring ya sabe qué código corresponde: por ejemplo, la ruta no existe (404) o el método no está permitido (405). | Excepciones que implementan `ErrorResponse` | La frase estándar del código (igual que `error`). |
-| 503 | `prestamos-service` no logra respuesta de `inventario-service` (sin respuesta, tiempo agotado o 5xx). | *Pendiente de implementar* (excepción propuesta: `DependenciaNoDisponibleException`) | `El servicio de inventario no está disponible. Intenta más tarde.` |
+| 503 | `prestamos-service` no logra respuesta de `inventario-service` (sin respuesta, tiempo agotado o 5xx). | `DependenciaNoDisponibleException` (la lanza `InventarioHttpClient`) | `El servicio de inventario no está disponible. Intenta más tarde.` |
 | 500 | Cualquier otra excepción no prevista. | `Exception` | `Error inesperado. Por favor contacta al administrador.` |
 
 Cómo usarlo desde el código:

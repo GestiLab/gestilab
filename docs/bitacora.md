@@ -17,6 +17,7 @@ requisito de calidad.
 | Fecha | Decisión | Alternativas descartadas | Por qué se descartaron | Requisito |
 |---|---|---|---|---|
 | 2026-10-22 (propuesta) | **D-01** · La duración máxima y el requisito de autorización son columnas del tipo de equipo. `inventario-service` las devuelve junto con el estado de la unidad. | 1) Condicional por tipo en `prestamos-service`. 2) Archivo de configuración con reglas leído al arrancar. 3) Motor de reglas externo. | 1) Cada tipo nuevo exige modificar y desplegar préstamos. 2) Evita el cambio de código, pero exige reiniciar y deja las reglas lejos del dato. 3) Agrega un tercer proceso al sistema, contra la restricción de dos servicios. | RQ-01 Modificabilidad |
+| 2026-11-07 (propuesta) | **D-03** · `prestamos-service` consulta a inventario a través de una interfaz del dominio (`IInventarioClient`); la implementación HTTP (`RestClient` con tiempo de espera de 3 s, URL por configuración) vive fuera del dominio. | 1) Usar `RestClient` directamente dentro del servicio de dominio. 2) Feign (`spring-cloud-openfeign`) o `WebClient`. | 1) Las reglas de préstamo quedarían atadas a HTTP y solo se probarían con inventario o un servidor simulado levantado. 2) Agregan una dependencia (Spring Cloud o WebFlux) para una sola llamada; `RestClient` ya viene en `spring-web`. | RQ-02 Testabilidad |
 
 ### D-01 explicada
 
