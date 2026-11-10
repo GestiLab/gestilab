@@ -17,6 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /** Dominio puro: inventario y base de datos simulados, reloj fijo en el 2 de noviembre de 2026. */
@@ -190,6 +192,68 @@ class PrestamoServiceImplTest {
                 .isInstanceOf(DependenciaNoDisponibleException.class)
                 .hasMessage("inventario no disponible");
         verify(prestamoDao, never()).save(any());
+    }
+
+    private void personaConActivos(String solicitante, long activos) {
+        when(prestamoDao.countBySolicitanteIdAndEstadoIn(solicitante, EstadoPrestamo.activos()))
+                .thenReturn(activos);
+    }
+
+    @Test
+    @DisplayName("tope — persona con 2 préstamos activos → el préstamo se crea")
+    void solicitar_conDosActivos_debeCrearPrestamo() {
+        personaConActivos("ana", 2);
+        when(inventarioClient.obtenerUnidad(14L)).thenReturn(unidad(EstadoUnidad.DISPONIBLE, 7));
+        guardarDevuelveElMismoPrestamo();
+
+        assertThat(servicio.solicitar(14L, "ana").getSolicitanteId()).isEqualTo("ana");
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {3, 4})
+    @DisplayName("tope — persona con 3 o más activos → rechazo que indica el tope y no crea préstamo")
+    void solicitar_enElTope_debeRechazarIndicandoElTope(long activos) {
+        personaConActivos("ana", activos);
+
+        assertThatThrownBy(() -> servicio.solicitar(14L, "ana"))
+                .isInstanceOf(ReglaNegocioException.class)
+                .hasMessageContaining("tope de 3 unidades");
+        verify(prestamoDao, never()).save(any());
+        verifyNoInteractions(inventarioClient);
+    }
+
+    @Test
+    @DisplayName("tope — al devolver una y quedar con 2 activos → puede solicitar otra")
+    void solicitar_trasUnaDevolucion_debeCrearPrestamo() {
+        when(prestamoDao.countBySolicitanteIdAndEstadoIn("ana", EstadoPrestamo.activos()))
+                .thenReturn(3L, 2L);
+        when(inventarioClient.obtenerUnidad(14L)).thenReturn(unidad(EstadoUnidad.DISPONIBLE, 7));
+        guardarDevuelveElMismoPrestamo();
+
+        assertThatThrownBy(() -> servicio.solicitar(14L, "ana"))
+                .isInstanceOf(ReglaNegocioException.class);
+
+        assertThat(servicio.solicitar(14L, "ana").getEstado()).isEqualTo(EstadoPrestamo.SOLICITADO);
+    }
+
+    @Test
+    @DisplayName("tope — otra persona con 0 activos no se afecta por quien ya llegó al tope")
+    void solicitar_otraPersona_noDebeVerseAfectada() {
+        personaConActivos("luis", 0);
+        when(inventarioClient.obtenerUnidad(14L)).thenReturn(unidad(EstadoUnidad.DISPONIBLE, 7));
+        guardarDevuelveElMismoPrestamo();
+
+        assertThat(servicio.solicitar(14L, "luis").getSolicitanteId()).isEqualTo("luis");
+    }
+
+    @Test
+    @DisplayName("tope — espacios en el solicitante no permiten saltarse el conteo")
+    void solicitar_solicitanteConEspacios_debeContarComoLaMismaPersona() {
+        personaConActivos("ana", 3);
+
+        assertThatThrownBy(() -> servicio.solicitar(14L, "  ana  "))
+                .isInstanceOf(ReglaNegocioException.class)
+                .hasMessageContaining("tope");
     }
 
     @Test

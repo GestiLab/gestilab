@@ -21,14 +21,25 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PrestamoServiceImpl implements IPrestamoService {
 
+    /** Regla del servicio de préstamos, no de inventario ni del tipo de equipo (RF-05). */
+    static final int TOPE_UNIDADES_SIMULTANEAS = 3;
+
     private final IPrestamoDao prestamoDao;
     private final IInventarioClient inventarioClient;
     private final IFechaService fechaService;
 
     // Sin @Transactional a propósito: la llamada HTTP a inventario no debe mantener abierta una conexión
     // de base de datos (junto con spring.jpa.open-in-view=false). El save() corre en su propia transacción.
+    //
+    // Límite conocido: el conteo del tope y el guardado no son atómicos, así que solicitudes simultáneas de
+    // la misma persona podrían superar el tope. Cerrarlo exige serializar por persona en la base de datos.
     @Override
     public Prestamo solicitar(Long unidadId, String solicitanteId) {
+        // Se normaliza igual que en Prestamo: "ana " y "ana" son la misma persona para el tope
+        String solicitante = solicitanteId.strip();
+        // El tope va primero: es un rechazo barato que no necesita llamar a inventario
+        validarTope(solicitante);
+
         UnidadInventario unidad = validarRespuesta(inventarioClient.obtenerUnidad(unidadId));
 
         if (unidad.estado() != EstadoUnidad.DISPONIBLE) {
@@ -40,7 +51,7 @@ public class PrestamoServiceImpl implements IPrestamoService {
             throw new ReglaNegocioException("La unidad " + unidadId + " ya tiene un préstamo activo");
         }
 
-        Prestamo prestamo = Prestamo.solicitar(unidadId, unidad.tipoId(), solicitanteId,
+        Prestamo prestamo = Prestamo.solicitar(unidadId, unidad.tipoId(), solicitante,
                 unidad.duracionMaximaDias(), fechaService.hoy());
         return prestamoDao.save(prestamo);
     }
@@ -50,6 +61,14 @@ public class PrestamoServiceImpl implements IPrestamoService {
     public Prestamo obtenerPorId(Long id) {
         return prestamoDao.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Préstamo " + id + " no encontrado"));
+    }
+
+    private void validarTope(String solicitante) {
+        long activos = prestamoDao.countBySolicitanteIdAndEstadoIn(solicitante, EstadoPrestamo.activos());
+        if (activos >= TOPE_UNIDADES_SIMULTANEAS) {
+            throw new ReglaNegocioException("Se alcanzó el tope de " + TOPE_UNIDADES_SIMULTANEAS
+                    + " unidades prestadas a la vez. Devuelve una para solicitar otra.");
+        }
     }
 
     /** Una respuesta que incumple el contrato es un fallo de la dependencia, no un error nuestro (503, no 500). */

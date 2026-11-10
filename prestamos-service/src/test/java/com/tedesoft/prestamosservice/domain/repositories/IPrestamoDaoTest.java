@@ -59,4 +59,23 @@ class IPrestamoDaoTest {
 
         assertThat(prestamoDao.existsByUnidadIdAndEstadoIn(14L, EstadoPrestamo.activos())).isTrue();
     }
+
+    @Test
+    @DisplayName("countBySolicitanteIdAndEstadoIn — cuenta solo los activos de esa persona")
+    void contarActivos_debeIgnorarDevueltosYOtrasPersonas() {
+        LocalDate hoy = LocalDate.of(2026, 11, 2);
+        em.persist(Prestamo.solicitar(1L, 2L, "ana", 7, hoy));
+        Prestamo entregado = Prestamo.solicitar(2L, 2L, "ana", 7, hoy);
+        ReflectionTestUtils.setField(entregado, "estado", EstadoPrestamo.ENTREGADO);
+        em.persist(entregado);
+        Prestamo devuelto = Prestamo.solicitar(3L, 2L, "ana", 7, hoy);
+        ReflectionTestUtils.setField(devuelto, "estado", EstadoPrestamo.DEVUELTO);
+        em.persist(devuelto);
+        em.persist(Prestamo.solicitar(4L, 2L, "luis", 7, hoy));
+        em.flush();
+
+        long activos = prestamoDao.countBySolicitanteIdAndEstadoIn("ana", EstadoPrestamo.activos());
+
+        assertThat(activos).isEqualTo(2);
+    }
 }
