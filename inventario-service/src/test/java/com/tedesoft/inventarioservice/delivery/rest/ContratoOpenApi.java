@@ -50,11 +50,23 @@ final class ContratoOpenApi {
 
     /** Cada campo del ejemplo existe en la respuesta con el mismo tipo JSON (los valores pueden variar). */
     void exigirMismosCamposYTipos(String ruta, JsonNode ejemplo, JsonNode real) {
+        comparar(ruta, ejemplo, real, false);
+    }
+
+    /** Como {@link #exigirMismosCamposYTipos}, pero además cada valor del ejemplo debe coincidir. */
+    void exigirMismosValores(String ruta, JsonNode ejemplo, JsonNode real) {
+        comparar(ruta, ejemplo, real, true);
+    }
+
+    // Campos de más en la respuesta (observaciones, tipo.descripcion) no rompen el contrato: quien consume los ignora.
+    private static void comparar(String ruta, JsonNode ejemplo, JsonNode real, boolean conValores) {
         assertNotNull(real, "Falta el campo " + ruta + " en la respuesta");
         assertEquals(ejemplo.getNodeType(), real.getNodeType(), "Tipo distinto en " + ruta);
         if (ejemplo.isObject()) {
             ejemplo.fieldNames().forEachRemaining(
-                    campo -> exigirMismosCamposYTipos(ruta + "." + campo, ejemplo.get(campo), real.get(campo)));
+                    campo -> comparar(ruta + "." + campo, ejemplo.get(campo), real.get(campo), conValores));
+        } else if (conValores) {
+            assertEquals(ejemplo, real, "Valor distinto en " + ruta);
         }
     }
 

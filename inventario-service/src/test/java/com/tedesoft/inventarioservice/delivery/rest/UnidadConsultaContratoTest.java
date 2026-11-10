@@ -10,21 +10,13 @@ import com.tedesoft.inventarioservice.domain.services.UnidadService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.config.YamlMapFactoryBean;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -34,16 +26,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * {@code GET /unidades/{id}}: maneja una sola respuesta con el estado de la unidad y las reglas de su
- * tipo (D-01), tal como lo consume {@code prestamos-service}. La capa web tendrá un servicio simulado.
+ * {@code GET /unidades/{id}} devuelve en una sola respuesta el estado de la unidad y las reglas de su
+ * tipo (D-01), tal como lo consume {@code prestamos-service}. Solo se carga la capa web; el servicio
+ * está simulado.
  *
- * <p>Los CA de este archivo son los de SCRUM-11
+ * <p>Cubre los criterios CA-1 a CA-5 de SCRUM-11.
  */
 @WebMvcTest(UnidadController.class)
 class UnidadConsultaContratoTest {
 
     private static final String RUTA = "/api/v1/inventario-service/unidades";
-    private static final Path CONTRATO = Path.of("..", "docs", "contrato", "openapi.yaml");
 
     @Autowired
     private MockMvc mockMvc;
@@ -126,14 +118,11 @@ class UnidadConsultaContratoTest {
     }
 
     @Test
-    @DisplayName("CA-5: una respuesta real tiene los mismos campos y tipos que el ejemplo de docs/contrato/openapi.yaml")
+    @DisplayName("CA-5: la respuesta tiene los mismos campos, tipos y valores que el ejemplo de docs/contrato/openapi.yaml")
     @SuppressWarnings("unchecked")
     void respetaElContrato() throws Exception {
-        assertTrue(Files.exists(CONTRATO), "No se encontró " + CONTRATO.toAbsolutePath().normalize()
-                + ". Las pruebas deben correr desde la carpeta inventario-service dentro del repositorio.");
-        Map<String, Object> openapi = leerYaml(CONTRATO);
-        Map<String, Object> ejemplo = (Map<String, Object>) en(openapi, "paths", "/unidades/{id}", "get",
-                "responses", "200", "content", "application/json", "example");
+        ContratoOpenApi contrato = ContratoOpenApi.cargar();
+        Map<String, Object> ejemplo = contrato.ejemploDeUnidad();
         Map<String, Object> tipoEjemplo = (Map<String, Object>) ejemplo.get("tipo");
 
         // Esta unidad simulada se arma con los valores del propio ejemplo: si el contrato cambia, la prueba lo sigue.
@@ -149,52 +138,11 @@ class UnidadConsultaContratoTest {
                 .andReturn().getResponse().getContentAsString();
         JsonNode real = objectMapper.readTree(cuerpo);
 
-        // 1) Cada campo del ejemplo existe en la respuesta, con el mismo tipo JSON y el mismo valor.
-        //    Campos de más (observaciones, tipo.descripcion) no rompen el contrato: son opcionales y quien
-        //    consume los ignora.
-        compararConEjemplo("$", objectMapper.valueToTree(ejemplo), real);
+        // 1) Cada campo del ejemplo existe en la respuesta con el mismo tipo JSON y el mismo valor.
+        contrato.exigirMismosValores("$", objectMapper.valueToTree(ejemplo), real);
 
         // 2) Los campos obligatorios de los esquemas Unidad y TipoEquipo vienen en la respuesta.
-        exigirObligatorios("Unidad", openapi, real);
-        exigirObligatorios("TipoEquipo", openapi, real.get("tipo"));
-    }
-
-    // ---------------------------------------------------------------- utilidades del contrato
-
-    private static Map<String, Object> leerYaml(Path ruta) throws Exception {
-        YamlMapFactoryBean yaml = new YamlMapFactoryBean();
-        yaml.setResources(new FileSystemResource(ruta));
-        yaml.afterPropertiesSet();
-        return yaml.getObject();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Object en(Map<String, Object> raiz, String... camino) {
-        Object actual = raiz;
-        for (String clave : camino) {
-            assertTrue(actual instanceof Map, "El contrato no tiene la ruta " + String.join(" > ", camino));
-            actual = ((Map<String, Object>) actual).get(clave);
-            assertNotNull(actual, "El contrato no tiene '" + clave + "' en " + String.join(" > ", camino));
-        }
-        return actual;
-    }
-
-    private static void compararConEjemplo(String ruta, JsonNode esperado, JsonNode real) {
-        assertNotNull(real, "Falta el campo " + ruta + " en la respuesta");
-        assertEquals(esperado.getNodeType(), real.getNodeType(), "Tipo distinto en " + ruta);
-        if (esperado.isObject()) {
-            esperado.fieldNames().forEachRemaining(
-                    campo -> compararConEjemplo(ruta + "." + campo, esperado.get(campo), real.get(campo)));
-        } else {
-            assertEquals(esperado, real, "Valor distinto en " + ruta);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void exigirObligatorios(String esquema, Map<String, Object> openapi, JsonNode real) {
-        List<String> obligatorios = (List<String>) en(openapi, "components", "schemas", esquema, "required");
-        for (String campo : obligatorios) {
-            assertTrue(real.has(campo), "Falta el campo obligatorio '" + campo + "' del esquema " + esquema);
-        }
+        contrato.exigirObligatorios("Unidad", real);
+        contrato.exigirObligatorios("TipoEquipo", real.get("tipo"));
     }
 }
