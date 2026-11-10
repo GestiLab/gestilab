@@ -1,5 +1,7 @@
 package com.tedesoft.prestamosservice.delivery.exception;
 
+import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleException;
+import com.tedesoft.prestamosservice.domain.exception.DependenciaRechazadaException;
 import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;
 import org.slf4j.Logger;
@@ -29,6 +31,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> reglaNegocio(ReglaNegocioException ex) {
         log.warn("Regla de negocio: {}", ex.getMessage());
         return construir(HttpStatus.CONFLICT, ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(DependenciaNoDisponibleException.class)
+    public ResponseEntity<ApiErrorResponse> dependenciaNoDisponible(DependenciaNoDisponibleException ex) {
+        // La causa (timeout, 5xx de inventario...) ya se registró donde ocurrió; al cliente solo el mensaje fijo.
+        log.warn("Dependencia no disponible: {}", ex.getMessage());
+        return construir(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(DependenciaRechazadaException.class)
+    public ResponseEntity<ApiErrorResponse> dependenciaRechazada(DependenciaRechazadaException ex) {
+        // El código que devolvió la dependencia ya quedó en el log de quien la llamó; al cliente solo el mensaje fijo.
+        log.warn("Dependencia rechazó la petición: {}", ex.getMessage());
+        return construir(HttpStatus.BAD_GATEWAY, ex.getMessage(), null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

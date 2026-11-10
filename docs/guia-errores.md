@@ -32,6 +32,7 @@ Reglas del formato:
 - **400:** la petición está mal formada. Ejemplo: el número de inventario llega vacío.
 - **404:** lo que se pide no existe. Ejemplo: no hay una unidad con id 99.
 - **409:** la petición está bien, pero una regla de negocio no la permite. Ejemplo: el número de inventario MUL-014 ya existe.
+- **502:** el servicio funciona y el otro del que depende respondió, pero rechazó la petición (credenciales, permisos o contrato). Ejemplo: inventario le responde 401 a `prestamos-service`. Reintentar no lo arregla: es un problema de integración.
 - **503:** el servicio funciona, pero otro del que depende no responde. Ejemplo: `prestamos-service` no obtiene respuesta de inventario.
 - **500:** ocurrió un error que nadie previó. El mensaje es genérico porque el detalle real podría revelar información interna, como rutas o la estructura de la base de datos.
 
@@ -44,7 +45,8 @@ Reglas del formato:
 | 400 | El cuerpo no cumple las validaciones (`@Valid`). | `MethodArgumentNotValidException` | `Datos de entrada inválidos` (más `errores`). |
 | 400 | El cuerpo no es un JSON legible. | `HttpMessageNotReadableException` | `El cuerpo de la petición no es un JSON válido` |
 | 404, 405, ... | Spring ya sabe qué código corresponde: por ejemplo, la ruta no existe (404) o el método no está permitido (405). | Excepciones que implementan `ErrorResponse` | La frase estándar del código (igual que `error`). |
-| 503 | `prestamos-service` no logra respuesta de `inventario-service` (sin respuesta, tiempo agotado o 5xx). | *Pendiente de implementar* (excepción propuesta: `DependenciaNoDisponibleException`) | `El servicio de inventario no está disponible. Intenta más tarde.` |
+| 502 | `inventario-service` responde a `prestamos-service` con un 4xx distinto de 404 (400, 401, 403...). | `DependenciaRechazadaException` (la lanza `InventarioHttpClient`) | `No se pudo consultar el servicio de inventario. Contacta al administrador.` |
+| 503 | `prestamos-service` no logra respuesta de `inventario-service` (sin respuesta, tiempo agotado o 5xx). | `DependenciaNoDisponibleException` (la lanza `InventarioHttpClient`) | `El servicio de inventario no está disponible. Intenta más tarde.` |
 | 500 | Cualquier otra excepción no prevista. | `Exception` | `Error inesperado. Por favor contacta al administrador.` |
 
 Cómo usarlo desde el código:
@@ -108,8 +110,19 @@ Con un cuerpo `{"nombre":""}` y un campo `nombre` marcado `@NotBlank(message = "
 }
 ```
 
+### 502: el servicio dependiente rechazó la petición
+Lo devuelve `prestamos-service` cuando `inventario-service` responde con un 4xx distinto de 404 (por ejemplo 401 o 403 por credenciales entre servicios). Tampoco reenvía el cuerpo recibido.
+```json
+{
+  "status": 502,
+  "error": "Bad Gateway",
+  "mensaje": "No se pudo consultar el servicio de inventario. Contacta al administrador.",
+  "timestamp": "2026-11-01T10:40:29.843437"
+}
+```
+
 ### 503: servicio dependiente no disponible
-Lo devuelve `prestamos-service` cuando su llamada a `inventario-service` falla. Si inventario responde 404, prestamos responde 404; si no responde, se agota el tiempo o devuelve 5xx, prestamos responde 503 y **no reenvía** el cuerpo que recibió, porque podría contener detalles internos de inventario.
+Lo devuelve `prestamos-service` cuando su llamada a `inventario-service` falla. Si inventario responde 404, prestamos responde 404; otro 4xx da 502 (arriba); si no responde, se agota el tiempo o devuelve 5xx, prestamos responde 503 y **no reenvía** el cuerpo que recibió, porque podría contener detalles internos de inventario.
 ```json
 {
   "status": 503,
