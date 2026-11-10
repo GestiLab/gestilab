@@ -136,7 +136,7 @@ class InventarioHttpClientTest {
         Map<String, Object> tipo = (Map<String, Object>) ejemplo.get("tipo");
 
         UnidadInventario esperada = new UnidadInventario(id, (String) ejemplo.get("numeroInventario"),
-                EstadoUnidad.valueOf((String) ejemplo.get("estado")),
+                EstadoUnidad.valueOf((String) ejemplo.get("estado")), ((Number) tipo.get("id")).longValue(),
                 ((Number) tipo.get("duracionMaximaDias")).intValue(), (Boolean) tipo.get("requiereAutorizacion"));
 
         assertThat(cliente().obtenerUnidad(id)).isEqualTo(esperada);
@@ -149,6 +149,16 @@ class InventarioHttpClientTest {
                 + "\"duracionMaximaDias\":7,\"requiereAutorizacion\":false}}");
 
         assertThatThrownBy(() -> cliente().obtenerUnidad(600L))
+                .isInstanceOf(DependenciaNoDisponibleException.class);
+    }
+
+    @Test
+    void ca3_sinIdDelTipo_seTrataComoDependenciaNoDisponible() {
+        // El préstamo guarda el tipo (RF-09, RF-11): sin tipo.id no se puede crear.
+        stub.registrar(601, "{\"id\":601,\"numeroInventario\":\"X-601\",\"estado\":\"DISPONIBLE\","
+                + "\"tipo\":{\"nombre\":\"X\",\"duracionMaximaDias\":7,\"requiereAutorizacion\":false}}");
+
+        assertThatThrownBy(() -> cliente().obtenerUnidad(601L))
                 .isInstanceOf(DependenciaNoDisponibleException.class);
     }
 

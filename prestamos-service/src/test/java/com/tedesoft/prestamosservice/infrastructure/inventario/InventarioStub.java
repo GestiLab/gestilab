@@ -27,12 +27,12 @@ final class InventarioStub implements AutoCloseable {
     /** Como la unidad 14 de los datos iniciales de inventario: multímetro disponible, 7 días, sin autorización. */
     static final long ID_MULTIMETRO = 14;
     static final UnidadInventario UNIDAD_14 =
-            new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, 7, false);
+            new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, 1L, 7, false);
 
     /** Tipo distinto (3 días y autorización obligatoria): el cliente no debe conocer los tipos (RQ-01). */
     static final long ID_CAMARA = 87;
     static final UnidadInventario UNIDAD_87 =
-            new UnidadInventario(87L, "CAM-007", EstadoUnidad.DISPONIBLE, 3, true);
+            new UnidadInventario(87L, "CAM-007", EstadoUnidad.DISPONIBLE, 3L, 3, true);
 
     static final long ID_INEXISTENTE = 999;
     static final long ID_ERROR_500 = 500;
@@ -97,7 +97,7 @@ final class InventarioStub implements AutoCloseable {
             if (cuerpos.containsKey(id)) {
                 responder(intercambio, 200, cuerpos.get(id));
             } else if (id == ID_MULTIMETRO) {
-                responder(intercambio, 200, unidadJson(14, "MUL-014", "DISPONIBLE", 2, "Multímetro", "7", "false"));
+                responder(intercambio, 200, unidadJson(14, "MUL-014", "DISPONIBLE", 1, "Multímetro", "7", "false"));
             } else if (id == ID_CAMARA) {
                 responder(intercambio, 200, unidadJson(87, "CAM-007", "DISPONIBLE", 3, "Cámara", "3", "true"));
             } else if (id == ID_ERROR_500) {

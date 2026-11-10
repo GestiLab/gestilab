@@ -13,6 +13,7 @@ import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -58,6 +59,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> jsonIlegible(HttpMessageNotReadableException ex) {
         return construir(HttpStatus.BAD_REQUEST, "El cuerpo de la petición no es un JSON válido", null);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> parametroInvalido(MethodArgumentTypeMismatchException ex) {
+        Map<String, String> errores = Map.of(ex.getName(), "El valor no tiene el formato esperado");
+        return construir(HttpStatus.BAD_REQUEST, "Parámetro de ruta inválido", errores);
     }
 
     @ExceptionHandler(Exception.class)

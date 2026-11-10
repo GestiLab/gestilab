@@ -73,6 +73,7 @@ public class InventarioHttpClient implements IInventarioClient {
     private UnidadInventario aDominio(Long id, UnidadJson unidad) {
         if (unidad == null || unidad.id() == null || unidad.numeroInventario() == null
                 || unidad.estado() == null || unidad.tipo() == null
+                || unidad.tipo().id() == null
                 || unidad.tipo().duracionMaximaDias() == null || unidad.tipo().requiereAutorizacion() == null) {
             log.warn("Inventario respondió la unidad {} sin los campos del contrato", id);
             throw new DependenciaNoDisponibleException(MENSAJE_NO_DISPONIBLE);
@@ -81,6 +82,7 @@ public class InventarioHttpClient implements IInventarioClient {
                 unidad.id(),
                 unidad.numeroInventario(),
                 unidad.estado(),
+                unidad.tipo().id(),
                 unidad.tipo().duracionMaximaDias(),
                 unidad.tipo().requiereAutorizacion());
     }
