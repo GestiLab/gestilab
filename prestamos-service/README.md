@@ -32,7 +32,7 @@ Para usar otros valores, copia `.env.example` a `.env` (está en el `.gitignore`
 | `INVENTARIO_URL` | `http://localhost:8080/api/v1/inventario-service` | Dirección de inventario, con el prefijo de la API. |
 | `INVENTARIO_TIMEOUT` | `3s` | Tiempo máximo de conexión y de espera de respuesta. |
 
-Resultados: unidad encontrada → objeto de dominio; inventario responde 404 → `RecursoNoEncontradoException` (404); inventario apagado, lento (más del timeout), con 5xx o con una respuesta que no cumple el contrato → `DependenciaNoDisponibleException` (503, ver `docs/guia-errores.md`).
+Resultados: unidad encontrada → objeto de dominio; inventario responde 404 → `RecursoNoEncontradoException` (404); inventario apagado, lento (más del timeout), con 5xx o con una respuesta que no cumple el contrato → `DependenciaNoDisponibleException` (503); inventario responde otro 4xx (400, 401, 403...) → `DependenciaRechazadaException` (502). Ver `docs/guia-errores.md`.
 
 Las pruebas del cliente usan un stub HTTP del contrato y no necesitan inventario. La prueba contra inventario real (CA-7) está desactivada por defecto; con ambos servicios en ejecución y los datos iniciales cargados:
 

@@ -39,7 +39,9 @@ final class InventarioStub implements AutoCloseable {
     static final long ID_JSON_ROTO = 501;
     static final long ID_ESTADO_DESCONOCIDO = 502;
     static final long ID_SIN_REGLAS = 503;
-    static final long ID_4XX_INESPERADO = 504;
+    static final long ID_403 = 504;
+    static final long ID_401 = 505;
+    static final long ID_400 = 506;
 
     private final HttpServer servidor;
     private final ExecutorService hilos = Executors.newCachedThreadPool();
@@ -109,8 +111,12 @@ final class InventarioStub implements AutoCloseable {
                 // Falta requiereAutorizacion: no se puede asumir "false".
                 responder(intercambio, 200, "{\"id\":503,\"numeroInventario\":\"X-503\",\"estado\":\"DISPONIBLE\","
                         + "\"tipo\":{\"id\":2,\"nombre\":\"Raro\",\"duracionMaximaDias\":7}}");
-            } else if (id == ID_4XX_INESPERADO) {
-                responder(intercambio, 403, "{\"status\":403,\"mensaje\":\"Prohibido\"}");
+            } else if (id == ID_403) {
+                responder(intercambio, 403, "{\"status\":403,\"mensaje\":\"Prohibido: rol auxiliar requerido\"}");
+            } else if (id == ID_401) {
+                responder(intercambio, 401, "{\"status\":401,\"mensaje\":\"Token ausente o vencido\"}");
+            } else if (id == ID_400) {
+                responder(intercambio, 400, "{\"status\":400,\"mensaje\":\"Parámetro id inválido\"}");
             } else {
                 responder(intercambio, 404, "{\"status\":404,\"error\":\"Not Found\",\"mensaje\":\"Unidad " + id
                         + " no encontrada\",\"timestamp\":\"2026-11-01T10:40:29.843437\"}");

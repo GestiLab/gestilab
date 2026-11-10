@@ -1,6 +1,7 @@
 package com.tedesoft.prestamosservice.delivery.exception;
 
 import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleException;
+import com.tedesoft.prestamosservice.domain.exception.DependenciaRechazadaException;
 import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -31,6 +32,11 @@ class GlobalExceptionHandlerTest {
         void dependencia() {
             throw new DependenciaNoDisponibleException("El servicio de inventario no está disponible. Intenta más tarde.",
                     new java.net.SocketTimeoutException("Read timed out (detalle interno)"));
+        }
+
+        @GetMapping("/probe/rechazo")
+        void rechazo() {
+            throw new DependenciaRechazadaException("No se pudo consultar el servicio de inventario. Contacta al administrador.");
         }
 
         @PostMapping("/probe/validar")
@@ -64,5 +70,15 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.mensaje").value("El servicio de inventario no está disponible. Intenta más tarde."))
                 .andExpect(jsonPath("$.trace").doesNotExist())
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("detalle interno"))));
+    }
+
+    @Test
+    void dependenciaRechazada_devuelve502ConFormatoComun() throws Exception {
+        mockMvc.perform(get("/probe/rechazo"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.status").value(502))
+                .andExpect(jsonPath("$.error").value("Bad Gateway"))
+                .andExpect(jsonPath("$.mensaje").value("No se pudo consultar el servicio de inventario. Contacta al administrador."))
+                .andExpect(jsonPath("$.trace").doesNotExist());
     }
 }

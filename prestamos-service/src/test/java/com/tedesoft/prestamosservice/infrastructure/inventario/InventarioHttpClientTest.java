@@ -3,6 +3,7 @@ package com.tedesoft.prestamosservice.infrastructure.inventario;
 import com.tedesoft.prestamosservice.config.InventarioClientConfig;
 import com.tedesoft.prestamosservice.config.InventarioClientProperties;
 import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleException;
+import com.tedesoft.prestamosservice.domain.exception.DependenciaRechazadaException;
 import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.prestamosservice.domain.models.EstadoUnidad;
 import com.tedesoft.prestamosservice.domain.models.UnidadInventario;
@@ -10,6 +11,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.client.RestClient;
 import java.time.Duration;
 import java.util.Map;
@@ -96,10 +99,18 @@ class InventarioHttpClientTest {
                 .hasMessageNotContaining("NullPointerException");
     }
 
-    @Test
-    void ca3_otro4xxInesperado_seTrataComoDependenciaNoDisponible() {
-        assertThatThrownBy(() -> cliente().obtenerUnidad(ID_4XX_INESPERADO))
-                .isInstanceOf(DependenciaNoDisponibleException.class);
+    // ---- 4xx distinto de 404: inventario sí respondió, pero rechazó la petición de préstamos.
+    //      Es un problema de integración (credenciales, contrato), no una caída: 502, no 503.
+
+    @ParameterizedTest(name = "inventario responde {0}")
+    @ValueSource(longs = {ID_401, ID_403, ID_400})
+    void inventarioRechazaLaPeticion_lanzaDependenciaRechazadaSinReenviarSuCuerpo(long id) {
+        assertThatThrownBy(() -> cliente().obtenerUnidad(id))
+                .isInstanceOf(DependenciaRechazadaException.class)
+                .isNotInstanceOf(DependenciaNoDisponibleException.class)
+                .hasMessage(InventarioHttpClient.MENSAJE_RECHAZO)
+                .hasMessageNotContaining("Token")
+                .hasMessageNotContaining("rol auxiliar");
     }
 
     @Test
@@ -154,7 +165,9 @@ class InventarioHttpClientTest {
                 .hasMessage(InventarioHttpClient.MENSAJE_NO_DISPONIBLE);
         Duration transcurrido = Duration.ofNanos(System.nanoTime() - inicio);
 
-        assertThat(transcurrido).isLessThan(Duration.ofMillis(1_500)); // cortó a los ~300 ms, no esperó los 2 s
+        // Cortó a los ~300 ms. El tope es el retardo del stub (2 s): holgura para un CI lento sin
+        // dejar de detectar un cliente que espera la respuesta completa.
+        assertThat(transcurrido).isLessThan(Duration.ofMillis(2_000));
     }
 
     @Test

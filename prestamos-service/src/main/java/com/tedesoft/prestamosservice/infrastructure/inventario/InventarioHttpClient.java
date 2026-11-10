@@ -2,6 +2,7 @@ package com.tedesoft.prestamosservice.infrastructure.inventario;
 
 import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;
 import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleException;
+import com.tedesoft.prestamosservice.domain.exception.DependenciaRechazadaException;
 import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.prestamosservice.domain.models.EstadoUnidad;
 import com.tedesoft.prestamosservice.domain.models.UnidadInventario;
@@ -20,7 +21,9 @@ import org.springframework.web.client.RestClientException;
  * <ul>
  *   <li>200 con cuerpo válido → {@link UnidadInventario}.</li>
  *   <li>404 → {@link RecursoNoEncontradoException} (el handler global responde 404).</li>
- *   <li>Sin respuesta, tiempo agotado, 5xx, otro código inesperado o cuerpo que no cumple el contrato →
+ *   <li>Otro 4xx (400, 401, 403...) → {@link DependenciaRechazadaException} (el handler global responde 502
+ *       sin reenviar el cuerpo): inventario respondió, pero rechazó la petición.</li>
+ *   <li>Sin respuesta, tiempo agotado, 5xx o cuerpo que no cumple el contrato →
  *       {@link DependenciaNoDisponibleException} (el handler global responde 503 sin reenviar el cuerpo).</li>
  * </ul>
  */
@@ -28,6 +31,7 @@ import org.springframework.web.client.RestClientException;
 public class InventarioHttpClient implements IInventarioClient {
 
     static final String MENSAJE_NO_DISPONIBLE = "El servicio de inventario no está disponible. Intenta más tarde.";
+    static final String MENSAJE_RECHAZO = "No se pudo consultar el servicio de inventario. Contacta al administrador.";
 
     private static final Logger log = LoggerFactory.getLogger(InventarioHttpClient.class);
 
@@ -48,13 +52,19 @@ public class InventarioHttpClient implements IInventarioClient {
             UnidadJson unidad = restClient.get()
                     .uri("/unidades/{id}", id)
                     .retrieve()
-                    .onStatus(estado -> estado.value() == 404, (peticion, respuesta) -> {
-                        throw new RecursoNoEncontradoException("Unidad " + id + " no encontrada");
+                    // Un solo manejador para todos los 4xx: el orden entre varios onStatus no queda a la vista.
+                    .onStatus(estado -> estado.is4xxClientError(), (peticion, respuesta) -> {
+                        if (respuesta.getStatusCode().value() == 404) {
+                            throw new RecursoNoEncontradoException("Unidad " + id + " no encontrada");
+                        }
+                        // Inventario respondió pero rechazó la petición (credenciales, permisos, contrato).
+                        log.warn("Inventario rechazó la consulta de la unidad {} con {}", id, respuesta.getStatusCode());
+                        throw new DependenciaRechazadaException(MENSAJE_RECHAZO);
                     })
                     .body(UnidadJson.class);
             return aDominio(id, unidad);
         } catch (RestClientException e) {
-            // Sin conexión, timeout, 5xx, 4xx inesperado o JSON ilegible: el detalle solo va al log.
+            // Sin conexión, timeout, 5xx o JSON ilegible: el detalle solo va al log.
             log.warn("Inventario no disponible al consultar la unidad {}: {}", id, e.getMessage());
             throw new DependenciaNoDisponibleException(MENSAJE_NO_DISPONIBLE, e);
         }
