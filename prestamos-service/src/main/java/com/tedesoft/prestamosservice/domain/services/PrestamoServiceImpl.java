@@ -1,13 +1,13 @@
 package com.tedesoft.prestamosservice.domain.services;
 
-import com.tedesoft.prestamosservice.domain.clients.EstadoUnidad;
 import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;
-import com.tedesoft.prestamosservice.domain.clients.UnidadInventario;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
 import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleException;
 import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;
+import com.tedesoft.prestamosservice.domain.models.EstadoUnidad;
+import com.tedesoft.prestamosservice.domain.models.UnidadInventario;
 import com.tedesoft.prestamosservice.domain.repositories.IPrestamoDao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

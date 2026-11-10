@@ -1,10 +1,10 @@
 package com.tedesoft.prestamosservice.integration;
 
-import com.tedesoft.prestamosservice.domain.clients.EstadoUnidad;
+import com.tedesoft.prestamosservice.domain.models.EstadoUnidad;
 import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;
-import com.tedesoft.prestamosservice.domain.clients.UnidadInventario;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
+import com.tedesoft.prestamosservice.domain.models.UnidadInventario;
 import com.tedesoft.prestamosservice.domain.repositories.IPrestamoDao;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,7 +75,7 @@ class PrestamoIntegracionTest {
     @DisplayName("POST y luego GET — se persiste con la fecha del tipo y la duración aplicada")
     void solicitarYConsultar_debePersistirFechaYDuracion() throws Exception {
         when(inventarioClient.obtenerUnidad(14L))
-                .thenReturn(new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, 7, false));
+                .thenReturn(new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, 2L, 7, false));
 
         MvcResult creado = mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"unidadId\": 14, \"solicitanteId\": \"ana\"}"))
@@ -97,7 +97,7 @@ class PrestamoIntegracionTest {
     @DisplayName("CA-2 — si el tipo cambia a 3 días después, el préstamo ya creado sigue con 7 días y su fecha")
     void consultar_trasCambiarElTipo_debeConservarLaDuracionAplicada() throws Exception {
         when(inventarioClient.obtenerUnidad(14L))
-                .thenReturn(new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, 7, false));
+                .thenReturn(new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, 2L, 7, false));
 
         MvcResult creado = mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"unidadId\": 14, \"solicitanteId\": \"ana\"}"))
@@ -106,7 +106,7 @@ class PrestamoIntegracionTest {
 
         // El tipo cambia en inventario: ahora presta por 3 días
         when(inventarioClient.obtenerUnidad(14L))
-                .thenReturn(new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, 3, false));
+                .thenReturn(new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, 2L, 3, false));
 
         mockMvc.perform(get(creado.getResponse().getHeader("Location")))
                 .andExpect(status().isOk())
@@ -118,7 +118,7 @@ class PrestamoIntegracionTest {
     @DisplayName("Una misma unidad no se presta a dos personas mientras el primer préstamo siga activo")
     void solicitar_unidadYaSolicitada_debeRechazarAlSegundo() throws Exception {
         when(inventarioClient.obtenerUnidad(14L))
-                .thenReturn(new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, 7, false));
+                .thenReturn(new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, 2L, 7, false));
 
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"unidadId\": 14, \"solicitanteId\": \"ana\"}"))
@@ -136,7 +136,7 @@ class PrestamoIntegracionTest {
     @DisplayName("POST — unidad prestada → 409 y no queda ningún préstamo en la base")
     void solicitar_unidadPrestada_noDebeCrearPrestamo() throws Exception {
         when(inventarioClient.obtenerUnidad(14L))
-                .thenReturn(new UnidadInventario(14L, EstadoUnidad.PRESTADA, 2L, 7, false));
+                .thenReturn(new UnidadInventario(14L, "MUL-014", EstadoUnidad.PRESTADA, 2L, 7, false));
 
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"unidadId\": 14, \"solicitanteId\": \"ana\"}"))
@@ -147,7 +147,7 @@ class PrestamoIntegracionTest {
 
     private void solicitar(long unidadId, String solicitante, ResultMatcher esperado) throws Exception {
         when(inventarioClient.obtenerUnidad(unidadId))
-                .thenReturn(new UnidadInventario(unidadId, EstadoUnidad.DISPONIBLE, 2L, 7, false));
+                .thenReturn(new UnidadInventario(unidadId, "MUL-" + unidadId, EstadoUnidad.DISPONIBLE, 2L, 7, false));
 
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"unidadId\": " + unidadId + ", \"solicitanteId\": \"" + solicitante + "\"}"))

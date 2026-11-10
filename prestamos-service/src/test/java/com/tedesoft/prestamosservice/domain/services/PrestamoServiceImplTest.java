@@ -1,8 +1,8 @@
 package com.tedesoft.prestamosservice.domain.services;
 
-import com.tedesoft.prestamosservice.domain.clients.EstadoUnidad;
+import com.tedesoft.prestamosservice.domain.models.EstadoUnidad;
 import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;
-import com.tedesoft.prestamosservice.domain.clients.UnidadInventario;
+import com.tedesoft.prestamosservice.domain.models.UnidadInventario;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
 import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleException;
@@ -58,7 +58,7 @@ class PrestamoServiceImplTest {
     }
 
     private static UnidadInventario unidad(EstadoUnidad estado, int duracionDias) {
-        return new UnidadInventario(14L, estado, 2L, duracionDias, false);
+        return new UnidadInventario(14L, "MUL-014", estado, 2L, duracionDias, false);
     }
 
     private void guardarDevuelveElMismoPrestamo() {
@@ -97,7 +97,7 @@ class PrestamoServiceImplTest {
     @DisplayName("solicitar — la fecha sale de la duración que informa inventario, no de una tabla por tipo (RQ-01)")
     void solicitar_cualquierDuracionDelTipo_debeAplicarlaSinCambiarCodigo(int duracion, LocalDate esperada) {
         when(inventarioClient.obtenerUnidad(14L))
-                .thenReturn(new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, duracion, true));
+                .thenReturn(new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, 2L, duracion, true));
         guardarDevuelveElMismoPrestamo();
 
         Prestamo prestamo = servicio.solicitar(14L, "ana");
@@ -165,10 +165,10 @@ class PrestamoServiceImplTest {
 
     static Stream<Arguments> respuestasQueIncumplenElContrato() {
         return Stream.of(
-                Arguments.of("estado nulo", new UnidadInventario(14L, null, 2L, 7, false)),
-                Arguments.of("tipo nulo", new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, null, 7, false)),
-                Arguments.of("duración cero", new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, 0, false)),
-                Arguments.of("duración negativa", new UnidadInventario(14L, EstadoUnidad.DISPONIBLE, 2L, -1, false)));
+                Arguments.of("estado nulo", new UnidadInventario(14L, "MUL-014", null, 2L, 7, false)),
+                Arguments.of("tipo nulo", new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, null, 7, false)),
+                Arguments.of("duración cero", new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, 2L, 0, false)),
+                Arguments.of("duración negativa", new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, 2L, -1, false)));
     }
 
     @Test
