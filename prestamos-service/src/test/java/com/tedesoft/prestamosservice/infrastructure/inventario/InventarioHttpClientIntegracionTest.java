@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * CA-7 · Integración real. Solo corre si se pide explícitamente, porque necesita {@code inventario-service}
- * en ejecución con los datos iniciales (la unidad 14 es MULT-014, disponible, 7 días, sin autorización).
+ * en ejecución con los datos iniciales (la unidad 14 es MUL-014, disponible, 7 días, sin autorización).
  * El CI normal la omite.
  *
  * <pre>
