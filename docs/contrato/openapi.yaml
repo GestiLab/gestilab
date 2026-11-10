@@ -48,7 +48,7 @@ paths:
                 $ref: '#/components/schemas/Unidad'
               example:
                 id: 14
-                numeroInventario: MULT-014
+                numeroInventario: MUL-014
                 estado: DISPONIBLE
                 tipo:
                   id: 2
