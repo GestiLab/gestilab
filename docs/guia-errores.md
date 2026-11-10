@@ -31,7 +31,7 @@ Reglas del formato:
 
 - **400:** la petición está mal formada. Ejemplo: el número de inventario llega vacío.
 - **404:** lo que se pide no existe. Ejemplo: no hay una unidad con id 99.
-- **409:** la petición está bien, pero una regla de negocio no la permite. Ejemplo: el número de inventario MULT-014 ya existe.
+- **409:** la petición está bien, pero una regla de negocio no la permite. Ejemplo: el número de inventario MUL-014 ya existe.
 - **503:** el servicio funciona, pero otro del que depende no responde. Ejemplo: `prestamos-service` no obtiene respuesta de inventario.
 - **500:** ocurrió un error que nadie previó. El mensaje es genérico porque el detalle real podría revelar información interna, como rutas o la estructura de la base de datos.
 
@@ -69,7 +69,7 @@ Cómo usarlo desde el código:
 {
   "status": 409,
   "error": "Conflict",
-  "mensaje": "Ya existe una unidad con número de inventario MULT-014",
+  "mensaje": "Ya existe una unidad con número de inventario MUL-014",
   "timestamp": "2026-11-01T10:40:29.843437"
 }
 ```
