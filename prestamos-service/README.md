@@ -23,6 +23,60 @@ Credenciales por defecto: `devdb` / `devdb`. Se cambian con `DB_URL`, `DB_USERNA
 
 Para usar otros valores, copia `.env.example` a `.env` (está en el `.gitignore`, no se sube). `docker compose` lo lee solo; para la aplicación expórtalo antes de arrancar: `set -a; source .env; set +a; ./mvnw spring-boot:run`.
 
+## Préstamos
+
+Ruta base: `/api/v1/prestamos-service/prestamos`.
+
+### `POST /prestamos`: solicitar una unidad
+
+```bash
+curl -X POST localhost:8090/api/v1/prestamos-service/prestamos \
+  -H 'Content-Type: application/json' \
+  -d '{"unidadId": 14, "solicitanteId": "ana"}'
+```
+
+| Campo | Reglas |
+|---|---|
+| `unidadId` | Obligatorio, mayor que 0. Es el id de la unidad en `inventario-service`. |
+| `solicitanteId` | Obligatorio, hasta 100 caracteres, sin caracteres de control. Se recortan los espacios. Es **provisional**: con la seguridad (SCRUM-20) saldrá del `sub` del token y este campo desaparecerá. |
+
+Responde `201` con el encabezado `Location` y el préstamo:
+
+```json
+{
+  "id": 1,
+  "unidadId": 14,
+  "tipoId": 1,
+  "solicitanteId": "ana",
+  "estado": "SOLICITADO",
+  "duracionAplicadaDias": 7,
+  "fechaSolicitud": "2026-11-09",
+  "fechaDevolucionPrevista": "2026-11-16"
+}
+```
+
+La fecha prevista es la de hoy (reloj inyectado) más la duración máxima del tipo, que informa inventario. Esa duración se guarda en el préstamo: si la regla del tipo cambia después, el préstamo no cambia. No hay reglas por tipo de equipo en este servicio.
+
+### `GET /prestamos/{id}`: consultar un préstamo
+
+Responde `200` con el mismo cuerpo, o `404` si no existe.
+
+### Errores
+
+Todos usan el formato común de `docs/guia-errores.md`.
+
+| Código | Cuándo |
+|---|---|
+| 400 | Cuerpo que no cumple las validaciones, JSON ilegible o `id` que no es un número. |
+| 404 | La unidad (al solicitar) o el préstamo (al consultar) no existe. |
+| 409 | La unidad no está disponible, la unidad ya tiene un préstamo activo, o la persona ya tiene 3 préstamos activos (tope). |
+| 502 | Inventario respondió, pero rechazó la petición (4xx distinto de 404). |
+| 503 | Inventario no responde, tarda más del tiempo máximo, falla (5xx) o contesta algo que no cumple el contrato. |
+
+Un préstamo activo es el que aún no se ha devuelto (`SOLICITADO` o `ENTREGADO`). El tope de 3 es una regla de este servicio.
+
+**Límite conocido:** el tope y la regla de "una unidad, un préstamo" se comprueban antes de guardar y no son atómicos. Con solicitudes simultáneas pueden superarse. Cerrarlo exige una restricción en la base de datos y está previsto con SCRUM-19.
+
 ## Cliente de inventario
 
 `prestamos-service` consulta a `inventario-service` por HTTP (`GET /unidades/{id}`, contrato en `docs/contrato/openapi.yaml`) para saber el estado de una unidad y las reglas de su tipo. Nunca accede a la base de datos de inventario. El dominio usa la interfaz `IInventarioClient`; la implementación es `InventarioHttpClient`.
