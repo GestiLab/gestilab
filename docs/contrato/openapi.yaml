@@ -51,7 +51,7 @@ paths:
                 numeroInventario: MUL-014
                 estado: DISPONIBLE
                 tipo:
-                  id: 2
+                  id: 1
                   nombre: Multímetro
                   duracionMaximaDias: 7
                   requiereAutorizacion: false
