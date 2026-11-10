@@ -1,30 +1,30 @@
 package com.tedesoft.prestamosservice.config;
 
-import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;
-import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleException;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Fallback;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.RestClient;
 
 /**
- * Cliente provisional mientras no exista el cliente HTTP real (SCRUM-10).
- *
- * <p>Responde siempre "inventario no disponible" en lugar de inventar datos. Está marcado
- * {@link Fallback}: Spring lo usa solo si no hay otra implementación de {@link IInventarioClient}. A
- * diferencia de {@code @ConditionalOnMissingBean}, esto no depende del orden en que se procesen las
- * configuraciones, así que el cliente real puede declararse como {@code @Component} o como {@code @Bean}
- * sin provocar un error de arranque. Al llegar el cliente real esta clase puede borrarse.
+ * Único lugar donde se decide a dónde apunta el cliente de inventario y cuánto espera (CA-4, CA-5).
+ * Los tiempos van al socket (conexión y lectura): sin ellos, un inventario colgado dejaría colgado
+ * también a préstamos.
  */
 @Configuration
+@EnableConfigurationProperties(InventarioClientProperties.class)
 public class InventarioClientConfig {
 
-    public static final String MENSAJE_NO_DISPONIBLE = "inventario no disponible";
-
     @Bean
-    @Fallback
-    public IInventarioClient inventarioClientProvisional() {
-        return unidadId -> {
-            throw new DependenciaNoDisponibleException(MENSAJE_NO_DISPONIBLE);
-        };
+    public RestClient inventarioRestClient(RestClient.Builder builder, InventarioClientProperties propiedades) {
+        SimpleClientHttpRequestFactory fabrica = new SimpleClientHttpRequestFactory();
+        fabrica.setConnectTimeout(propiedades.timeout());
+        fabrica.setReadTimeout(propiedades.timeout());
+        return builder
+                .baseUrl(propiedades.url())
+                .requestFactory(fabrica)
+                .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE)
+                .build();
     }
 }

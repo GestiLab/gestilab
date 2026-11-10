@@ -48,10 +48,10 @@ paths:
                 $ref: '#/components/schemas/Unidad'
               example:
                 id: 14
-                numeroInventario: MULT-014
+                numeroInventario: MUL-014
                 estado: DISPONIBLE
                 tipo:
-                  id: 2
+                  id: 1
                   nombre: Multímetro
                   duracionMaximaDias: 7
                   requiereAutorizacion: false
