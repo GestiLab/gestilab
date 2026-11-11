@@ -22,6 +22,10 @@ REGLA_INVERTIDA='.isAfter(hoy)'
 PATRON_RELOJ='(LocalDate|LocalDateTime|LocalTime|Instant|ZonedDateTime|OffsetDateTime|Year|YearMonth)\.now\(|System\.currentTimeMillis|System\.nanoTime|Clock\.system|new Date\(|Calendar\.getInstance'
 PERMITIDO_RELOJ='\.now\((this\.)?[A-Za-z_]*([Cc]lock|[Rr]eloj)\)'
 
+# Maven con el entorno limpio de variables que la configuración de los servicios lee (INVENTARIO_URL, DB_URL...):
+# si el usuario las tiene exportadas para correr la aplicación, las pruebas de configuración fallarían sin motivo.
+mvn_aislado() { env -u INVENTARIO_URL -u INVENTARIO_TIMEOUT -u DB_URL -u DB_USERNAME -u DB_PASSWORD mvn "$@"; }
+
 # Imprime "archivo:línea:texto" de cada llamada al reloj del sistema bajo la carpeta dada (nada si no hay)
 buscar_reloj() {
     grep -rnE --include='*.java' "$PATRON_RELOJ" "$1" 2>/dev/null \
@@ -56,10 +60,10 @@ COBERTURA=(); TIEMPO=()
 for i in "${!SERVICIOS[@]}"; do
     s=${SERVICIOS[$i]}
     echo ">> $s: calentando la caché de Maven (no se mide)"
-    mvn -B -ntp -q -f "$RAIZ/$s/pom.xml" clean verify > "$SALIDA/calentamiento-$s.log" 2>&1
+    mvn_aislado -B -ntp -q -f "$RAIZ/$s/pom.xml" clean verify > "$SALIDA/calentamiento-$s.log" 2>&1
     echo ">> $s: midiendo"
     inicio=$(date +%s)
-    mvn -B -ntp -f "$RAIZ/$s/pom.xml" clean verify > "$SALIDA/maven-$s.log" 2>&1
+    mvn_aislado -B -ntp -f "$RAIZ/$s/pom.xml" clean verify > "$SALIDA/maven-$s.log" 2>&1
     codigo=$?
     fin=$(date +%s)
     pared=$((fin - inicio))
@@ -125,7 +129,7 @@ mkdir -p "$TEMPORAL/docs" && cp -R "$RAIZ/docs/contrato" "$TEMPORAL/docs/contrat
 if grep -qF "$REGLA_ORIGINAL" "$TEMPORAL/$REGLA_ARCHIVO"; then
     sed -i.bak "s/$(printf '%s' "$REGLA_ORIGINAL" | sed 's/[.[\*^$/]/\\&/g')/$(printf '%s' "$REGLA_INVERTIDA" | sed 's/[&/\]/\\&/g')/" "$TEMPORAL/$REGLA_ARCHIVO"
     rm -f "$TEMPORAL/$REGLA_ARCHIVO.bak"
-    mvn -B -ntp -f "$TEMPORAL/$servicio_regla/pom.xml" clean test -Djacoco.skip=true > "$SALIDA/regla-invertida.log" 2>&1
+    mvn_aislado -B -ntp -f "$TEMPORAL/$servicio_regla/pom.xml" clean test -Djacoco.skip=true > "$SALIDA/regla-invertida.log" 2>&1
     fallidas=$(grep -a -E '^\[ERROR\]   [A-Za-z0-9_]+\.[A-Za-z0-9_]+' "$SALIDA/regla-invertida.log" | sed -E 's/^\[ERROR\]   //; s/:[0-9]+.*//' | sort -u)
     cuenta=$(printf '%s' "$fallidas" | grep -c . || true)
     echo "Pruebas que fallan: $cuenta" >> "$SALIDA/regla-invertida.txt"
