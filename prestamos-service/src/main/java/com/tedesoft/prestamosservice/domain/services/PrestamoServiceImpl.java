@@ -85,6 +85,23 @@ public class PrestamoServiceImpl implements IPrestamoService {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<Prestamo> listar(String persona, EstadoPrestamo estado) {
+        // Se recorta igual que al guardar: "ana " y "ana" son la misma persona
+        String solicitante = persona == null ? null : persona.strip();
+        if (solicitante == null && estado == null) {
+            return prestamoDao.findAllByOrderByIdDesc();
+        }
+        if (estado == null) {
+            return prestamoDao.findBySolicitanteIdOrderByIdDesc(solicitante);
+        }
+        if (solicitante == null) {
+            return prestamoDao.findByEstadoOrderByIdDesc(estado);
+        }
+        return prestamoDao.findBySolicitanteIdAndEstadoOrderByIdDesc(solicitante, estado);
+    }
+
     private void validarTope(String solicitante) {
         long activos = prestamoDao.countBySolicitanteIdAndEstadoIn(solicitante, EstadoPrestamo.activos());
         if (activos >= TOPE_UNIDADES_SIMULTANEAS) {

@@ -1,5 +1,6 @@
 package com.tedesoft.prestamosservice.domain.services;
 
+import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
 import com.tedesoft.prestamosservice.domain.models.PrestamoRetrasado;
 
@@ -33,4 +34,13 @@ public interface IPrestamoService {
      * hoy según el reloj inyectado. El que vence hoy no cuenta. El más atrasado va primero.
      */
     List<PrestamoRetrasado> listarRetrasados();
+
+    /**
+     * Lista préstamos, el más reciente primero.
+     *
+     * @param persona quien solicitó el préstamo; {@code null} = cualquiera. Se recorta como al guardarla.
+     * @param estado  estado del préstamo; {@code null} = cualquiera.
+     * @return lista vacía si nada coincide, nunca un error.
+     */
+    List<Prestamo> listar(String persona, EstadoPrestamo estado);
 }

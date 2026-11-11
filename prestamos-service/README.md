@@ -61,6 +61,21 @@ La fecha prevista es la de hoy (reloj inyectado) más la duración máxima del t
 
 Responde `200` con el mismo cuerpo, o `404` si no existe.
 
+### `GET /prestamos`: listar préstamos
+
+```bash
+curl 'localhost:8090/api/v1/prestamos-service/prestamos?persona=ana&estado=SOLICITADO'
+```
+
+| Parámetro | Reglas |
+|---|---|
+| `persona` | Opcional. Solo los préstamos de esa persona. Se recortan los espacios y después debe tener entre 1 y 100 caracteres, sin caracteres de control. |
+| `estado` | Opcional. `SOLICITADO`, `ENTREGADO` o `DEVUELTO`, en mayúsculas. |
+
+Los dos filtros se combinan; sin filtros trae todos. Responde `200` con una lista del mismo cuerpo que al consultar un préstamo, del más reciente al más antiguo, o con `[]` si nada coincide. Un parámetro inválido responde `400` con el formato común y el detalle en `errores`.
+
+Hoy el servicio no valida quién pregunta. Con la seguridad (SCRUM-20), ver los préstamos de otra persona quedará reservado al auxiliar y los propios saldrán del token (SCRUM-24).
+
 ### `GET /prestamos/retrasos`: listar los préstamos retrasados
 
 ```bash
