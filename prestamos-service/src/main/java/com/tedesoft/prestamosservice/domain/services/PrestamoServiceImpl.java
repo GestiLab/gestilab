@@ -7,11 +7,16 @@ import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleExc
 import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;
 import com.tedesoft.prestamosservice.domain.models.EstadoUnidad;
+import com.tedesoft.prestamosservice.domain.models.PrestamoRetrasado;
 import com.tedesoft.prestamosservice.domain.models.UnidadInventario;
 import com.tedesoft.prestamosservice.domain.repositories.IPrestamoDao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Casos de uso de préstamos. No contiene reglas por tipo de equipo: la duración llega en la respuesta de
@@ -23,6 +28,11 @@ public class PrestamoServiceImpl implements IPrestamoService {
 
     /** Regla del servicio de préstamos, no de inventario ni del tipo de equipo (RF-05). */
     static final int TOPE_UNIDADES_SIMULTANEAS = 3;
+
+    /** El id desempata para que dos consultas seguidas devuelvan siempre el mismo orden. */
+    private static final Comparator<PrestamoRetrasado> MAS_ATRASADO_PRIMERO =
+            Comparator.comparingLong(PrestamoRetrasado::diasRetraso).reversed()
+                    .thenComparing(PrestamoRetrasado::prestamoId);
 
     private final IPrestamoDao prestamoDao;
     private final IInventarioClient inventarioClient;
@@ -61,6 +71,18 @@ public class PrestamoServiceImpl implements IPrestamoService {
     public Prestamo obtenerPorId(Long id) {
         return prestamoDao.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Préstamo " + id + " no encontrado"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PrestamoRetrasado> listarRetrasados() {
+        LocalDate hoy = fechaService.hoy();
+        // Los entregados no pueden ser más que las unidades físicas: traerlos todos y filtrar aquí es barato
+        return prestamoDao.findByEstado(EstadoPrestamo.ENTREGADO).stream()
+                .filter(prestamo -> PrestamoRetrasado.aplicaA(prestamo, hoy))
+                .map(prestamo -> PrestamoRetrasado.desde(prestamo, hoy))
+                .sorted(MAS_ATRASADO_PRIMERO)
+                .toList();
     }
 
     private void validarTope(String solicitante) {

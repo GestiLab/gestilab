@@ -5,6 +5,7 @@ import com.tedesoft.prestamosservice.domain.entities.Prestamo;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Collection;
+import java.util.List;
 
 public interface IPrestamoDao extends JpaRepository<Prestamo, Long> {
 
@@ -12,4 +13,6 @@ public interface IPrestamoDao extends JpaRepository<Prestamo, Long> {
     boolean existsByUnidadIdAndEstadoIn(Long unidadId, Collection<EstadoPrestamo> estados);
 
     long countBySolicitanteIdAndEstadoIn(String solicitanteId, Collection<EstadoPrestamo> estados);
+
+    List<Prestamo> findByEstado(EstadoPrestamo estado);
 }

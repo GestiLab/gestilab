@@ -1,6 +1,7 @@
 package com.tedesoft.prestamosservice.delivery.rest;
 
 import com.tedesoft.prestamosservice.delivery.rest.dto.PrestamoResponseDto;
+import com.tedesoft.prestamosservice.delivery.rest.dto.PrestamoRetrasadoResponseDto;
 import com.tedesoft.prestamosservice.delivery.rest.dto.SolicitudPrestamoRequestDto;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
 import com.tedesoft.prestamosservice.domain.services.IPrestamoService;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.util.List;
 
 @RestController
 // produces: sin él, un Accept que no sea JSON se descubre DESPUÉS de crear el préstamo y el cliente recibe 406
@@ -35,6 +37,14 @@ public class PrestamoRestController {
                 .buildAndExpand(creado.getId())
                 .toUri();
         return ResponseEntity.created(location).body(PrestamoResponseDto.desde(creado));
+    }
+
+    /** Solo del auxiliar (RF-08). La restricción por rol llega con la historia de seguridad (SCRUM-20, CA-13). */
+    @GetMapping("/retrasos")
+    public ResponseEntity<List<PrestamoRetrasadoResponseDto>> listarRetrasos() {
+        return ResponseEntity.ok(prestamoService.listarRetrasados().stream()
+                .map(PrestamoRetrasadoResponseDto::desde)
+                .toList());
     }
 
     @GetMapping("/{id}")
