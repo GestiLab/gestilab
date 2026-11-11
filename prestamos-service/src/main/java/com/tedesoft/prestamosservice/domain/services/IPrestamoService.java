@@ -1,6 +1,9 @@
 package com.tedesoft.prestamosservice.domain.services;
 
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
+import com.tedesoft.prestamosservice.domain.models.PrestamoRetrasado;
+
+import java.util.List;
 
 public interface IPrestamoService {
 
@@ -24,4 +27,10 @@ public interface IPrestamoService {
      *         si no existe.
      */
     Prestamo obtenerPorId(Long id);
+
+    /**
+     * Lista los préstamos entregados cuya fecha de devolución ya pasó, con los días de retraso respecto a
+     * hoy según el reloj inyectado. El que vence hoy no cuenta. El más atrasado va primero.
+     */
+    List<PrestamoRetrasado> listarRetrasados();
 }
