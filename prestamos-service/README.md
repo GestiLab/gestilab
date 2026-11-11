@@ -61,6 +61,28 @@ La fecha prevista es la de hoy (reloj inyectado) más la duración máxima del t
 
 Responde `200` con el mismo cuerpo, o `404` si no existe.
 
+### `GET /prestamos/retrasos`: listar los préstamos retrasados
+
+```bash
+curl localhost:8090/api/v1/prestamos-service/prestamos/retrasos
+```
+
+Es solo para el auxiliar. Hoy el servicio no valida el rol: la restricción llega con la seguridad (SCRUM-20, CA-13). Responde `200` con la lista, del más atrasado al menos atrasado, o con `[]` si no hay retrasos:
+
+```json
+[
+  {
+    "prestamoId": 1,
+    "unidadId": 14,
+    "solicitanteId": "ana",
+    "fechaDevolucionPrevista": "2026-11-17",
+    "diasRetraso": 3
+  }
+]
+```
+
+Un préstamo está retrasado cuando está `ENTREGADO` y su fecha de devolución prevista es **anterior** a hoy; el día del vencimiento aún no cuenta. Los `SOLICITADO` y los `DEVUELTO` nunca aparecen. El retraso no se guarda: se calcula en cada consulta con el reloj inyectado (`diasRetraso` = hoy menos la fecha prevista), así que las pruebas lo fijan con `Clock.fixed(...)`. `unidadId` es el id de la unidad en inventario: este listado no consulta a `inventario-service`.
+
 ### Errores
 
 Todos usan el formato común de `docs/guia-errores.md`.
