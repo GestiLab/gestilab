@@ -1,0 +1,5 @@
+/* Estilos globales. Los de cada pantalla van dentro de su componente. */
+body {
+  font-family: system-ui, sans-serif;
+  margin: 1rem;
+}
