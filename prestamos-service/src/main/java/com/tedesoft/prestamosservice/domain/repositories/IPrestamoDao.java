@@ -15,4 +15,13 @@ public interface IPrestamoDao extends JpaRepository<Prestamo, Long> {
     long countBySolicitanteIdAndEstadoIn(String solicitanteId, Collection<EstadoPrestamo> estados);
 
     List<Prestamo> findByEstado(EstadoPrestamo estado);
+
+    // Listados (SCRUM-24): el más reciente primero, con el id como criterio estable
+    List<Prestamo> findAllByOrderByIdDesc();
+
+    List<Prestamo> findBySolicitanteIdOrderByIdDesc(String solicitanteId);
+
+    List<Prestamo> findByEstadoOrderByIdDesc(EstadoPrestamo estado);
+
+    List<Prestamo> findBySolicitanteIdAndEstadoOrderByIdDesc(String solicitanteId, EstadoPrestamo estado);
 }
