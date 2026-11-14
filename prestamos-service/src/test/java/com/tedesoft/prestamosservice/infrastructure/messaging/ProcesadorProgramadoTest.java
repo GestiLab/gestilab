@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
@@ -23,7 +24,11 @@ import static org.mockito.Mockito.verify;
  */
 @SpringBootTest
 @ActiveProfiles("test")
+// Base H2 propia y contexto descartado al terminar: dos contextos con el procesador encendido sobre la MISMA
+// base en memoria se roban los eventos (uno los marca como publicados con su publicador de mentira).
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @TestPropertySource(properties = {
+        "spring.datasource.url=jdbc:h2:mem:procesador-programado;DB_CLOSE_DELAY=-1",
         "gestilab.eventos.procesador.habilitado=true",
         "gestilab.rabbitmq.unidad.reintento-ms=100"
 })

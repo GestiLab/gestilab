@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -37,10 +38,13 @@ import static org.awaitility.Awaitility.await;
  * acordado ({@code unidadId}, {@code nuevoEstado}, {@code fecha}). Si Docker no está disponible se omite.
  */
 @SpringBootTest(properties = {
+        // Base H2 propia: otro contexto con el procesador encendido sobre la misma base se llevaría los eventos
+        "spring.datasource.url=jdbc:h2:mem:evento-rabbitmq;DB_CLOSE_DELAY=-1",
         "gestilab.eventos.procesador.habilitado=true",
         "gestilab.rabbitmq.unidad.reintento-ms=200"
 })
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("SCRUM-19: el evento UnidadCambioDeEstado llega a RabbitMQ real")
 class EventoRabbitMqTest {
