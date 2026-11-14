@@ -1,7 +1,6 @@
 services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.0.8
-    container_name: gestilab_keycloak
     command: start-dev --import-realm
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}

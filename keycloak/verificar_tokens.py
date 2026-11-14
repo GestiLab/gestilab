@@ -6,7 +6,7 @@ Uso:
   python3 keycloak/verificar_tokens.py --exportar   imprime export TOKEN_USUARIO=... y export TOKEN_AUXILIAR=...
                                                     (uso: eval "$(python3 keycloak/verificar_tokens.py --exportar)")
 
-Hasta el momento,solo se usó la biblioteca estándar. Sale con código 1 si algún token no trae lo esperado
+Usa solo la biblioteca estándar de Python. Sale con código 1 si algún token no trae lo esperado
 y con código 2 si no puede conectar con Keycloak (apagado o todavía arrancando).
 """
 import base64

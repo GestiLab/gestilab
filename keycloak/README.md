@@ -61,4 +61,10 @@ Los roles de realm viajan en el access token en **`realm_access.roles`**. Los do
 }
 ```
 
-No se usa `resource_access`: los roles son de realm, no de cliente. El realm no define rol por defecto, así que el token trae únicamente el rol asignado al usuario (`usuario` o `auxiliar`).Se verificó con Keycloak 26.0.8.
+No se usa `resource_access`: los roles son de realm, no de cliente. El realm no define rol por defecto, así que el token trae únicamente el rol asignado al usuario (`usuario` o `auxiliar`). Se verificó con Keycloak 26.0.8.
+
+## Para quien valide el token en los servicios o sirva el cliente por contenedor
+
+- **Emisor (`iss`).** Con este compose el token dice `iss = http://localhost:8180/realms/gestilab`. Un servicio que corra en otro contenedor no ve a Keycloak en `localhost`: la dirección con la que descarga las claves y la que figura en `iss` deben coincidir, o el token se rechaza. Se resuelve al configurar la validación (SCRUM-20) y al conectar los servicios al compose (SCRUM-32).
+- **Redirección del cliente.** `gestilab-web` solo acepta `http://localhost:4200/*`. Si Angular se sirve desde su contenedor (SCRUM-29) con otra dirección, hay que agregarla en `redirectUris`, `webOrigins` y `post.logout.redirect.uris` de `gestilab-realm.json`.
+- **Nombre del contenedor.** El compose no fija `container_name`: Docker lo nombra a partir de la carpeta (`keycloak-keycloak-1`). Usa `docker compose -f keycloak/compose.yml logs` en vez del nombre.
