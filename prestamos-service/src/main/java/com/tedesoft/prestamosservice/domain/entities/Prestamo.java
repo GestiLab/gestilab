@@ -15,6 +15,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.util.Objects;
 
+import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;
+
 /**
  * Préstamo de una unidad a una persona (RF-04).
  *
@@ -85,4 +87,25 @@ public class Prestamo {
                                      LocalDate hoy) {
         return new Prestamo(unidadId, tipoId, solicitanteId, duracionDias, hoy);
     }
+
+
+    public void entregar() {
+        if (estado != EstadoPrestamo.SOLICITADO) {
+            throw new ReglaNegocioException(
+                    "No se puede entregar el préstamo. Estado actual: " + estado
+            );
+        }
+        this.estado = EstadoPrestamo.ENTREGADO;
+    }
+
+    public void recibir() {
+        if (estado != EstadoPrestamo.ENTREGADO) {
+            throw new ReglaNegocioException(
+                    "No se puede recibir el préstamo. Estado actual: " + estado
+            );
+        }
+        this.estado = EstadoPrestamo.DEVUELTO;
+    }
+
+
 }

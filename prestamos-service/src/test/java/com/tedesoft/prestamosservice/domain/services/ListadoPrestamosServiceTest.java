@@ -4,6 +4,8 @@ import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
 import com.tedesoft.prestamosservice.domain.repositories.IPrestamoDao;
+import com.tedesoft.prestamosservice.domain.clients.IEventoUnidadPendiente;
+import org.mockito.Mockito;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,9 +35,19 @@ class ListadoPrestamosServiceTest {
     @Mock
     private IInventarioClient inventarioClient;
 
+
     private PrestamoServiceImpl servicio() {
-        Clock reloj = Clock.fixed(Instant.parse("2026-11-20T15:00:00Z"), ZoneId.of("America/Bogota"));
-        return new PrestamoServiceImpl(prestamoDao, inventarioClient, new FechaServiceImpl(reloj));
+        Clock reloj = Clock.fixed(
+                Instant.parse("2026-11-20T15:00:00Z"),
+                ZoneId.of("America/Bogota")
+        );
+
+        return new PrestamoServiceImpl(
+                prestamoDao,
+                inventarioClient,
+                new FechaServiceImpl(reloj),
+                Mockito.mock(IEventoUnidadPendiente.class)
+        );
     }
 
     private static Prestamo prestamo(String persona) {
