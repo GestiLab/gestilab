@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import org.springframework.web.bind.annotation.PatchMapping;
 
 import java.net.URI;
 import java.util.List;
@@ -68,4 +69,30 @@ public class PrestamoRestController {
     public ResponseEntity<PrestamoResponseDto> obtener(@PathVariable Long id) {
         return ResponseEntity.ok(PrestamoResponseDto.desde(prestamoService.obtenerPorId(id)));
     }
+
+
+    // SCRUM-19: Registrar entrega de una unidad
+    @PatchMapping("/{id}/entregar")
+    public ResponseEntity<PrestamoResponseDto> entregar(
+            @PathVariable Long id) {
+
+        Prestamo prestamo = prestamoService.entregar(id);
+
+        return ResponseEntity.ok(
+                PrestamoResponseDto.desde(prestamo)
+        );
+    }
+
+    // SCRUM-19: Registrar devolución de una unidad
+    @PatchMapping("/{id}/recibir")
+    public ResponseEntity<PrestamoResponseDto> recibir(
+            @PathVariable Long id) {
+
+        Prestamo prestamo = prestamoService.recibir(id);
+
+        return ResponseEntity.ok(
+                PrestamoResponseDto.desde(prestamo)
+        );
+    }
+
 }

@@ -1,6 +1,8 @@
 package com.tedesoft.prestamosservice.domain.services;
 
 import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;
+import com.tedesoft.prestamosservice.domain.clients.IEventoUnidadPendiente;
+import org.mockito.Mockito;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
 import com.tedesoft.prestamosservice.domain.models.PrestamoRetrasado;
@@ -36,9 +38,16 @@ class RetrasosServiceTest {
     @Mock
     private IInventarioClient inventarioClient;
 
+
     private PrestamoServiceImpl servicioConHoy(String instante) {
         Clock reloj = Clock.fixed(Instant.parse(instante), BOGOTA);
-        return new PrestamoServiceImpl(prestamoDao, inventarioClient, new FechaServiceImpl(reloj));
+
+        return new PrestamoServiceImpl(
+                prestamoDao,
+                inventarioClient,
+                new FechaServiceImpl(reloj),
+                Mockito.mock(IEventoUnidadPendiente.class)
+        );
     }
 
     private static Prestamo entregado(long id, long unidadId, String persona, LocalDate prevista) {

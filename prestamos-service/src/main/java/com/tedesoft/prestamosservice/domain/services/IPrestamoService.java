@@ -43,4 +43,19 @@ public interface IPrestamoService {
      * @return lista vacía si nada coincide, nunca un error.
      */
     List<Prestamo> listar(String persona, EstadoPrestamo estado);
+
+
+    /**
+     * Registra la entrega de una unidad.
+     * Cambia el préstamo de SOLICITADO a ENTREGADO.
+     */
+    Prestamo entregar(Long prestamoId);
+
+    /**
+     * Registra la devolución de una unidad.
+     * Cambia el préstamo de ENTREGADO a DEVUELTO.
+     */
+    Prestamo recibir(Long prestamoId);
+
+
 }

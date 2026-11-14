@@ -2,6 +2,8 @@ package com.tedesoft.prestamosservice.domain.services;
 
 import com.tedesoft.prestamosservice.domain.models.EstadoUnidad;
 import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;
+import com.tedesoft.prestamosservice.domain.clients.IEventoUnidadPendiente;
+import org.mockito.Mockito;
 import com.tedesoft.prestamosservice.domain.models.UnidadInventario;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
@@ -51,10 +53,20 @@ class PrestamoServiceImplTest {
 
     private PrestamoServiceImpl servicio;
 
+
     @BeforeEach
     void setUp() {
-        Clock reloj = Clock.fixed(Instant.parse("2026-11-02T15:00:00Z"), BOGOTA);
-        servicio = new PrestamoServiceImpl(prestamoDao, inventarioClient, new FechaServiceImpl(reloj));
+        Clock reloj = Clock.fixed(
+                Instant.parse("2026-11-02T15:00:00Z"),
+                BOGOTA
+        );
+
+        servicio = new PrestamoServiceImpl(
+                prestamoDao,
+                inventarioClient,
+                new FechaServiceImpl(reloj),
+                Mockito.mock(IEventoUnidadPendiente.class)
+        );
     }
 
     private static UnidadInventario unidad(EstadoUnidad estado, int duracionDias) {
