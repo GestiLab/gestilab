@@ -1,0 +1,81 @@
+{
+  "realm": "gestilab",
+  "displayName": "GestiLab",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "loginWithEmailAllowed": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "usuario",
+        "description": "Consulta el catálogo, solicita unidades y ve sus propios préstamos."
+      },
+      {
+        "name": "auxiliar",
+        "description": "Administra catálogo y unidades, entrega y recibe equipos, marca retrasos y edita reglas de cada tipo."
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "gestilab-web",
+      "name": "GestiLab - Cliente Angular",
+      "description": "Cliente público de Angular. Authorization Code + PKCE (S256).",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "rootUrl": "http://localhost:4200",
+      "baseUrl": "/",
+      "redirectUris": ["http://localhost:4200/*"],
+      "webOrigins": ["http://localhost:4200"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:4200/*"
+      }
+    },
+    {
+      "clientId": "gestilab-verificacion",
+      "name": "GestiLab - Solo para el guion de verificación (desarrollo)",
+      "description": "Permite pedir tokens por contraseña desde el guion verificar_tokens.py. No usar en producción ni desde Angular.",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false
+    }
+  ],
+  "users": [
+    {
+      "username": "usuario.prueba",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "usuario.prueba@gestilab.local",
+      "firstName": "Usuario",
+      "lastName": "Prueba",
+      "credentials": [
+        { "type": "password", "value": "Usuario123!", "temporary": false }
+      ],
+      "realmRoles": ["usuario"]
+    },
+    {
+      "username": "auxiliar.prueba",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "auxiliar.prueba@gestilab.local",
+      "firstName": "Auxiliar",
+      "lastName": "Prueba",
+      "credentials": [
+        { "type": "password", "value": "Auxiliar123!", "temporary": false }
+      ],
+      "realmRoles": ["auxiliar"]
+    }
+  ]
+}
