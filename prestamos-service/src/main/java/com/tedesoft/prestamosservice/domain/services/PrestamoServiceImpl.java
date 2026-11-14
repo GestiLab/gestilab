@@ -10,6 +10,7 @@ import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;
 import com.tedesoft.prestamosservice.domain.models.EstadoUnidad;
 import com.tedesoft.prestamosservice.domain.models.PrestamoRetrasado;
 import com.tedesoft.prestamosservice.domain.models.UnidadInventario;
+import org.springframework.dao.DataIntegrityViolationException;
 import com.tedesoft.prestamosservice.domain.repositories.IPrestamoDao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,7 +21,6 @@ import java.util.Comparator;
 import java.util.List;
 
 import com.tedesoft.prestamosservice.domain.clients.IEventoUnidadPendiente;
-import java.time.OffsetDateTime;
 
 /**
  * Casos de uso de préstamos.
@@ -47,6 +47,7 @@ public class PrestamoServiceImpl implements IPrestamoService {
     private final IInventarioClient inventarioClient;
     private final IFechaService fechaService;
     private final IEventoUnidadPendiente eventosPendientes;
+    private final IControlConcurrencia controlConcurrencia;
     // ==========================================
     // SOLICITAR UN PRESTAMO (CODIGO EXISTENTE)
     // ==========================================
@@ -72,21 +73,29 @@ public class PrestamoServiceImpl implements IPrestamoService {
 
         if (prestamoDao.existsByUnidadIdAndEstadoIn(
                 unidadId, EstadoPrestamo.activos())) {
-            throw new ReglaNegocioException(
-                    "La unidad " + unidadId
-                            + " ya tiene un préstamo activo"
-            );
+            throw unidadYaPrestada(unidadId);
         }
 
-        Prestamo prestamo = Prestamo.solicitar(
-                unidadId,
-                unidad.tipoId(),
-                solicitante,
-                unidad.duracionMaximaDias(),
-                fechaService.hoy()
-        );
+        int duracion = unidad.duracionMaximaDias();
+        Long tipoId = unidad.tipoId();
 
-        return prestamoDao.save(prestamo);
+        // Comprobar y luego guardar deja pasar a dos solicitudes simultáneas: se repite dentro del bloqueo
+        // de la persona (tope de 3) y la base garantiza una sola por unidad (índice único parcial).
+        return controlConcurrencia.conExclusividad(solicitante, () -> {
+            validarTope(solicitante);
+
+            if (prestamoDao.existsByUnidadIdAndEstadoIn(
+                    unidadId, EstadoPrestamo.activos())) {
+                throw unidadYaPrestada(unidadId);
+            }
+
+            try {
+                return prestamoDao.saveAndFlush(Prestamo.solicitar(
+                        unidadId, tipoId, solicitante, duracion, fechaService.hoy()));
+            } catch (DataIntegrityViolationException e) {
+                throw unidadYaPrestada(unidadId);
+            }
+        });
     }
 
     // ==========================================
@@ -98,7 +107,7 @@ public class PrestamoServiceImpl implements IPrestamoService {
     @Transactional
     public Prestamo entregar(Long prestamoId) {
 
-        Prestamo prestamo = prestamoDao.findById(prestamoId)
+        Prestamo prestamo = prestamoDao.buscarParaActualizar(prestamoId)
                 .orElseThrow(() ->
                         new RecursoNoEncontradoException(
                                 "Préstamo " + prestamoId + " no encontrado"
@@ -113,8 +122,8 @@ public class PrestamoServiceImpl implements IPrestamoService {
         // Registrar evento pendiente para inventario.
         eventosPendientes.guardar(
                 guardado.getUnidadId(),
-                "PRESTADA",
-                OffsetDateTime.now()
+                EstadoUnidad.PRESTADA.name(),
+                fechaService.ahora()
         );
 
         return guardado;
@@ -129,7 +138,7 @@ public class PrestamoServiceImpl implements IPrestamoService {
     @Transactional
     public Prestamo recibir(Long prestamoId) {
 
-        Prestamo prestamo = prestamoDao.findById(prestamoId)
+        Prestamo prestamo = prestamoDao.buscarParaActualizar(prestamoId)
                 .orElseThrow(() ->
                         new RecursoNoEncontradoException(
                                 "Préstamo " + prestamoId + " no encontrado"
@@ -144,8 +153,8 @@ public class PrestamoServiceImpl implements IPrestamoService {
         // Registrar evento pendiente para inventario.
         eventosPendientes.guardar(
                 guardado.getUnidadId(),
-                "DISPONIBLE",
-                OffsetDateTime.now()
+                EstadoUnidad.DISPONIBLE.name(),
+                fechaService.ahora()
         );
 
         return guardado;
@@ -217,6 +226,10 @@ public class PrestamoServiceImpl implements IPrestamoService {
                 .findBySolicitanteIdAndEstadoOrderByIdDesc(
                         solicitante, estado
                 );
+    }
+
+    private static ReglaNegocioException unidadYaPrestada(Long unidadId) {
+        return new ReglaNegocioException("La unidad " + unidadId + " ya tiene un préstamo activo");
     }
 
     // ==========================================

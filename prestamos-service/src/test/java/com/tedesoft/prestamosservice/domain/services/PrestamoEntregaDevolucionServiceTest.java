@@ -45,12 +45,14 @@ class PrestamoEntregaDevolucionServiceTest {
 
     @BeforeEach
     void configurar() {
+        lenient().when(fechaService.ahora())
+                .thenReturn(OffsetDateTime.parse("2026-11-20T10:00:00-05:00"));
         servicio = new PrestamoServiceImpl(
                 prestamoDao,
                 inventarioClient,
                 fechaService,
-                eventosPendientes
-        );
+                eventosPendientes,
+                (clave, accion) -> accion.get());
     }
 
     private Prestamo crearPrestamo() {
@@ -68,7 +70,7 @@ class PrestamoEntregaDevolucionServiceTest {
     void entregar_debeGuardarEstadoEntregado() {
         Prestamo prestamo = crearPrestamo();
 
-        when(prestamoDao.findById(1L))
+        when(prestamoDao.buscarParaActualizar(1L))
                 .thenReturn(Optional.of(prestamo));
 
         when(prestamoDao.save(prestamo))
@@ -96,7 +98,7 @@ class PrestamoEntregaDevolucionServiceTest {
         Prestamo prestamo = crearPrestamo();
         prestamo.entregar();
 
-        when(prestamoDao.findById(1L))
+        when(prestamoDao.buscarParaActualizar(1L))
                 .thenReturn(Optional.of(prestamo));
 
         when(prestamoDao.save(prestamo))
@@ -124,7 +126,7 @@ class PrestamoEntregaDevolucionServiceTest {
         Prestamo prestamo = crearPrestamo();
         prestamo.entregar();
 
-        when(prestamoDao.findById(1L))
+        when(prestamoDao.buscarParaActualizar(1L))
                 .thenReturn(Optional.of(prestamo));
 
         assertThatThrownBy(() -> servicio.entregar(1L))
@@ -140,7 +142,7 @@ class PrestamoEntregaDevolucionServiceTest {
     void recibir_sinEntrega_debeRechazar() {
         Prestamo prestamo = crearPrestamo();
 
-        when(prestamoDao.findById(1L))
+        when(prestamoDao.buscarParaActualizar(1L))
                 .thenReturn(Optional.of(prestamo));
 
         assertThatThrownBy(() -> servicio.recibir(1L))
@@ -154,7 +156,7 @@ class PrestamoEntregaDevolucionServiceTest {
     @Test
     @DisplayName("No entregar un préstamo inexistente")
     void entregar_inexistente_debeRetornarError() {
-        when(prestamoDao.findById(99L))
+        when(prestamoDao.buscarParaActualizar(99L))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> servicio.entregar(99L))
@@ -168,7 +170,7 @@ class PrestamoEntregaDevolucionServiceTest {
     @Test
     @DisplayName("No recibir un préstamo inexistente")
     void recibir_inexistente_debeRetornarError() {
-        when(prestamoDao.findById(99L))
+        when(prestamoDao.buscarParaActualizar(99L))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> servicio.recibir(99L))

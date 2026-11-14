@@ -94,26 +94,19 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
+      # Levantar el contenedor y verificar /salud
       - name: Verificar que el contenedor arranca (/salud)
         run: |
-          docker_env=()
-          if [ "${{ matrix.service }}" = "prestamos-service" ]; then
-            docker_env+=(-e MANAGEMENT_HEALTH_RABBIT_ENABLED=false)
-          fi
-
           docker run -d --name app --network host \
-            "${docker_env[@]}" \
             -e DB_URL=jdbc:postgresql://localhost:5432/${{ matrix.db }} \
             -e DB_USERNAME=devdb -e DB_PASSWORD=devdb \
             gestilab/${{ matrix.service }}:ci
-
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:${{ matrix.health_port }}/salud; then
               echo; echo "Servicio saludable"; exit 0
             fi
             sleep 3
           done
-
           echo "El servicio no respondio en /salud"
           docker logs app
           exit 1

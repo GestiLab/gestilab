@@ -46,8 +46,8 @@ class ListadoPrestamosServiceTest {
                 prestamoDao,
                 inventarioClient,
                 new FechaServiceImpl(reloj),
-                Mockito.mock(IEventoUnidadPendiente.class)
-        );
+                Mockito.mock(IEventoUnidadPendiente.class),
+                (clave, accion) -> accion.get());
     }
 
     private static Prestamo prestamo(String persona) {

@@ -52,4 +52,8 @@ public class EventoUnidadPendiente {
     public void marcarPublicado() {
         this.publicado = true;
     }
+
+    public boolean estaPublicado() {
+        return publicado;
+    }
 }
