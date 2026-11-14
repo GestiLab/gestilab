@@ -14,7 +14,7 @@ Microservicio de préstamos de Gestilab (Spring Boot 3.5, Java 21). Usa un `java
    ./mvnw spring-boot:run
    curl localhost:8091/salud
    ```
-4. **Pruebas:** usan H2 en memoria, no necesitan Docker.
+4. **Pruebas:** casi todas usan H2 en memoria. Las de concurrencia (PostgreSQL) y las del evento (RabbitMQ) usan Testcontainers: levantan `postgres:16-alpine` y `rabbitmq:3.13-alpine` solas y **se omiten si Docker no está disponible**.
    ```bash
    ./mvnw test
    ```
@@ -98,6 +98,38 @@ Es solo para el auxiliar. Hoy el servicio no valida el rol: la restricción lleg
 
 Un préstamo está retrasado cuando está `ENTREGADO` y su fecha de devolución prevista es **anterior** a hoy; el día del vencimiento aún no cuenta. Los `SOLICITADO` y los `DEVUELTO` nunca aparecen. El retraso no se guarda: se calcula en cada consulta con el reloj inyectado (`diasRetraso` = hoy menos la fecha prevista), así que las pruebas lo fijan con `Clock.fixed(...)`. `unidadId` es el id de la unidad en inventario: este listado no consulta a `inventario-service`.
 
+### `PATCH /prestamos/{id}/entregar` y `PATCH /prestamos/{id}/recibir`: entregar y recibir una unidad
+
+Sin cuerpo. Responden `200` con el préstamo actualizado.
+
+| Ruta | Pasa de | A | Evento publicado |
+|---|---|---|---|
+| `PATCH /prestamos/{id}/entregar` | `SOLICITADO` | `ENTREGADO` | `UnidadCambioDeEstado` con `nuevoEstado = PRESTADA` |
+| `PATCH /prestamos/{id}/recibir` | `ENTREGADO` | `DEVUELTO` | `UnidadCambioDeEstado` con `nuevoEstado = DISPONIBLE` |
+
+Un estado que no corresponde (entregar uno ya entregado, recibir uno sin entregar) responde `409` con el estado actual y no publica ningún evento. Un préstamo inexistente responde `404`. Si dos personas entregan el mismo préstamo a la vez, la fila se bloquea: una entrega y la otra recibe `409`, y se registra un solo evento.
+
+## Evento `UnidadCambioDeEstado`
+
+`prestamos-service` **nunca escribe en la base de datos de inventario**: solo avisa por RabbitMQ y quien lo consume (SCRUM-21) actualiza la unidad.
+
+| Dato | Valor |
+|---|---|
+| Exchange | `gestilab.unidades.eventos` (tipo `topic`, durable). Se declara al arrancar. |
+| Routing key | `unidad.estado.cambiado` |
+| Mensaje | JSON persistente, `content-type: application/json` |
+| Campo `unidadId` | Número: id de la unidad en inventario. |
+| Campo `nuevoEstado` | Texto: `PRESTADA` o `DISPONIBLE` (los nombres de `EstadoUnidad` del contrato de inventario). |
+| Campo `fecha` | Texto ISO-8601 con desfase, tomado del reloj inyectado (por ejemplo `2026-11-20T10:00:00-05:00`). Sirve para descartar eventos fuera de orden. |
+
+```json
+{ "unidadId": 14, "nuevoEstado": "PRESTADA", "fecha": "2026-11-20T10:00:00-05:00" }
+```
+
+**Cómo se publica (buzón de eventos).** Al entregar o recibir, el cambio de estado y el evento se guardan **en la misma transacción** (tabla `evento_unidad_pendiente`). Un proceso interno revisa el buzón cada `gestilab.rabbitmq.unidad.reintento-ms` (5000 ms), publica en orden y espera la confirmación de RabbitMQ antes de marcar el evento como publicado. Así la entrega **no falla ni se pierde el evento si RabbitMQ está caído**: el evento sale cuando el broker vuelve. La entrega es *al menos una vez*: quien consume debe tolerar un evento repetido (SCRUM-21, CA-4).
+
+**Para quien consume (inventario).** Declara tu propia cola y enlázala al exchange con la routing key de arriba. Mientras no exista una cola enlazada, RabbitMQ devuelve el mensaje (`mandatory`), el evento queda pendiente y se reintenta sin perder el orden: no se descarta nada. Con `gestilab.eventos.procesador.habilitado=false` el proceso no corre (así lo hacen las pruebas con H2).
+
 ### Errores
 
 Todos usan el formato común de `docs/guia-errores.md`.
@@ -105,14 +137,18 @@ Todos usan el formato común de `docs/guia-errores.md`.
 | Código | Cuándo |
 |---|---|
 | 400 | Cuerpo que no cumple las validaciones, JSON ilegible o `id` que no es un número. |
-| 404 | La unidad (al solicitar) o el préstamo (al consultar) no existe. |
-| 409 | La unidad no está disponible, la unidad ya tiene un préstamo activo, o la persona ya tiene 3 préstamos activos (tope). |
+| 404 | La unidad (al solicitar) o el préstamo (al consultar, entregar o recibir) no existe. |
+| 409 | La unidad no está disponible, la unidad ya tiene un préstamo activo, la persona ya tiene 3 préstamos activos (tope), o el préstamo no está en el estado que pide entregar o recibir. |
 | 502 | Inventario respondió, pero rechazó la petición (4xx distinto de 404). |
 | 503 | Inventario no responde, tarda más del tiempo máximo, falla (5xx) o contesta algo que no cumple el contrato. |
 
 Un préstamo activo es el que aún no se ha devuelto (`SOLICITADO` o `ENTREGADO`). El tope de 3 es una regla de este servicio.
 
-**Límite conocido:** el tope y la regla de "una unidad, un préstamo" se comprueban antes de guardar y no son atómicos. Con solicitudes simultáneas pueden superarse. Cerrarlo exige una restricción en la base de datos y está previsto con SCRUM-19.
+**Solicitudes simultáneas.** Dos protecciones, ambas con PostgreSQL:
+- *Una unidad, un solo préstamo abierto:* un índice único parcial `ux_prestamo_unidad_abierto` sobre `prestamo (unidad_id)` para los estados activos. Las anotaciones de JPA no pueden declararlo, así que `IndiceUnicoPrestamoAbierto` lo crea con SQL propio en cada arranque (se elimina y se recrea; solo en PostgreSQL). Si la tabla ya tiene una unidad con dos préstamos abiertos no se puede crear: el servicio arranca, registra un `ERROR` con el SQL y hay que corregir esos datos.
+- *Tope de 3 por persona:* la solicitud toma un bloqueo de transacción por solicitante (`pg_advisory_xact_lock`) y vuelve a contar dentro de él; quien llega segundo espera y ve el préstamo del primero.
+
+Las pruebas de concurrencia corren contra PostgreSQL real (`ConcurrenciaPostgresTest`), no contra H2, que no reproduce ninguna de las dos protecciones. `/salud` no depende de RabbitMQ (`management.health.rabbit.enabled=false`): con el buzón de eventos, que el broker esté caído no impide operar.
 
 ## Cliente de inventario
 
