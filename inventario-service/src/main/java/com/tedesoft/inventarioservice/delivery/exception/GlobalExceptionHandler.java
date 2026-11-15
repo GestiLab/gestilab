@@ -1,6 +1,7 @@
 package com.tedesoft.inventarioservice.delivery.exception;
 
 import com.tedesoft.inventarioservice.domain.exception.RecursoNoEncontradoException;
+import com.tedesoft.inventarioservice.domain.exception.ParametroInvalidoException;
 import com.tedesoft.inventarioservice.domain.exception.ReglaNegocioException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> reglaNegocio(ReglaNegocioException ex) {
         log.warn("Regla de negocio: {}", ex.getMessage());
         return construir(HttpStatus.CONFLICT, ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(ParametroInvalidoException.class)
+    public ResponseEntity<ApiErrorResponse> parametroInvalido(ParametroInvalidoException ex) {
+        Map<String, String> errores = Map.of(ex.getCampo(), ex.getMessage());
+        return construir(HttpStatus.BAD_REQUEST, "Parámetros de consulta inválidos", errores);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

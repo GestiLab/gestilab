@@ -3,10 +3,16 @@ package com.tedesoft.inventarioservice.domain.services;
 import com.tedesoft.inventarioservice.domain.entities.EstadoUnidad;
 import com.tedesoft.inventarioservice.domain.entities.TipoEquipo;
 import com.tedesoft.inventarioservice.domain.entities.Unidad;
+import com.tedesoft.inventarioservice.domain.exception.ParametroInvalidoException;
 import com.tedesoft.inventarioservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.inventarioservice.domain.exception.ReglaNegocioException;
 import com.tedesoft.inventarioservice.domain.repositories.TipoEquipoRepository;
+import com.tedesoft.inventarioservice.domain.repositories.UnidadSpecification;
 import com.tedesoft.inventarioservice.domain.repositories.UnidadRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +31,28 @@ public class UnidadService {
     public UnidadService(UnidadRepository unidadRepository, TipoEquipoRepository tipoEquipoRepository) {
         this.unidadRepository = unidadRepository;
         this.tipoEquipoRepository = tipoEquipoRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Unidad> listar(Long tipoId, String estado, String nombre, int page, int size) {
+        if (page < 0) {
+            throw new ParametroInvalidoException("page", "La página no puede ser negativa");
+        }
+        if (size <= 0) {
+            throw new ParametroInvalidoException("size", "El tamaño de página debe ser mayor que cero");
+        }
+
+        EstadoUnidad estadoFiltro = null;
+        if (estado != null && !estado.isBlank()) {
+            if (!EstadoUnidad.esValido(estado)) {
+                throw new ParametroInvalidoException("estado",
+                        "Estado no permitido. Valores válidos: " + EstadoUnidad.permitidosComoTexto());
+            }
+            estadoFiltro = EstadoUnidad.desdeTexto(estado);
+        }
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id"));
+        return unidadRepository.findAll(UnidadSpecification.filtrar(tipoId, estadoFiltro, nombre), pageable);
     }
 
     public Unidad crear(Long tipoEquipoId, String numeroInventario, EstadoUnidad estado, String observaciones) {
