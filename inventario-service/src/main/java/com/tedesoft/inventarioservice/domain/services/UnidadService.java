@@ -16,6 +16,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 /**
  * Orquesta los casos de uso de las unidades. No contiene reglas de préstamo: esas viven en el
  * {@link TipoEquipo} al que pertenece cada unidad. Recibe y devuelve entidades del dominio: no conoce
@@ -52,7 +54,23 @@ public class UnidadService {
         }
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id"));
-        return unidadRepository.findAll(UnidadSpecification.filtrar(tipoId, estadoFiltro, nombre), pageable);
+        return unidadRepository.findAll(
+                UnidadSpecification.filtrar(tipoId, estadoFiltro, tiposCuyoNombreContiene(nombre)), pageable);
+    }
+
+    /**
+     * Ids de los tipos cuyo nombre coincide con la búsqueda, o {@code null} si no se buscó por nombre. Los
+     * tipos son pocos (decenas), así que se comparan en memoria sin tildes; las unidades sí se filtran
+     * y paginan en la base de datos.
+     */
+    private List<Long> tiposCuyoNombreContiene(String nombre) {
+        if (nombre == null || nombre.isBlank()) {
+            return null;
+        }
+        return tipoEquipoRepository.findAll().stream()
+                .filter(tipo -> tipo.nombreContiene(nombre))
+                .map(TipoEquipo::getId)
+                .toList();
     }
 
     public Unidad crear(Long tipoEquipoId, String numeroInventario, EstadoUnidad estado, String observaciones) {

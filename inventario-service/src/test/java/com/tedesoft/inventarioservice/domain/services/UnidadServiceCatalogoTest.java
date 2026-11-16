@@ -115,6 +115,26 @@ class UnidadServiceCatalogoTest {
     }
 
     @Test
+    @DisplayName("CA-4: sin búsqueda por nombre no se consultan los tipos")
+    void sinNombreNoConsultaTipos() {
+        repositorioDevuelve(new PageImpl<>(List.of()));
+
+        service.listar(null, null, "  ", 0, 20);
+
+        verifyNoInteractions(tipoEquipoRepository);
+    }
+
+    @Test
+    @DisplayName("CA-4: con búsqueda por nombre se comparan los tipos en el dominio")
+    void conNombreConsultaTipos() {
+        repositorioDevuelve(new PageImpl<>(List.of()));
+
+        service.listar(null, null, "multi", 0, 20);
+
+        verify(tipoEquipoRepository).findAll();
+    }
+
+    @Test
     @DisplayName("el estado se acepta en minúsculas")
     void estadoEnMinusculas() {
         repositorioDevuelve(new PageImpl<>(List.of()));

@@ -178,6 +178,25 @@ class UnidadCatalogoIntegracionTest {
     }
 
     @Test
+    @DisplayName("CA-4: buscar \"multi\" encuentra \"Multímetro\": la búsqueda no distingue tildes")
+    void buscaSinDistinguirTildes() throws Exception {
+        assertThat(consultar("nombre", "multi").get("totalElements").asLong()).isEqualTo(40);
+        assertThat(consultar("nombre", "MULTIMETRO").get("totalElements").asLong()).isEqualTo(40);
+        assertThat(consultar("nombre", "camara").get("totalElements").asLong()).isEqualTo(40);
+        assertThat(consultar("nombre", "portatil").get("totalElements").asLong()).isEqualTo(40);
+        assertThat(consultar("nombre", "PORTÁTIL").get("totalElements").asLong()).isEqualTo(40);
+        // Combinada con los otros filtros sigue siendo AND
+        assertThat(consultar("nombre", "camara", "estado", "PRESTADA").get("totalElements").asLong())
+                .isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("un carácter NUL en la búsqueda responde 200 sin resultados, no un error")
+    void busquedaConCaracterNul() throws Exception {
+        assertThat(consultar("nombre", "mul\u0000ti").get("totalElements").asLong()).isZero();
+    }
+
+    @Test
     @DisplayName("CA-5: los filtros se combinan con AND")
     void combinaFiltros() throws Exception {
         assertThat(consultar("tipoId", String.valueOf(multimetro.getId()), "estado", "PRESTADA")
