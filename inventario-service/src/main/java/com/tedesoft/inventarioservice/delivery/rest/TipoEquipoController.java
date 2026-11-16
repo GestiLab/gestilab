@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/inventario-service/tipos-equipo")
@@ -25,6 +26,11 @@ public class TipoEquipoController {
 
     public TipoEquipoController(TipoEquipoService service) {
         this.service = service;
+    }
+
+    @GetMapping
+    public List<TipoEquipoResponseDto> listar() {
+        return service.listar().stream().map(TipoEquipoResponseDto::desde).toList();
     }
 
     @PostMapping

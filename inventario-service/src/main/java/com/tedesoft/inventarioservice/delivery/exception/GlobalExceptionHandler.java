@@ -1,6 +1,7 @@
 package com.tedesoft.inventarioservice.delivery.exception;
 
 import com.tedesoft.inventarioservice.domain.exception.RecursoNoEncontradoException;
+import com.tedesoft.inventarioservice.domain.exception.ParametroInvalidoException;
 import com.tedesoft.inventarioservice.domain.exception.ReglaNegocioException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import java.util.LinkedHashMap;
@@ -33,6 +35,12 @@ public class GlobalExceptionHandler {
         return construir(HttpStatus.CONFLICT, ex.getMessage(), null);
     }
 
+    @ExceptionHandler(ParametroInvalidoException.class)
+    public ResponseEntity<ApiErrorResponse> parametroInvalido(ParametroInvalidoException ex) {
+        Map<String, String> errores = Map.of(ex.getCampo(), ex.getMessage());
+        return construir(HttpStatus.BAD_REQUEST, "Parámetros de consulta inválidos", errores);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> validacion(MethodArgumentNotValidException ex) {
         Map<String, String> errores = new LinkedHashMap<>();
@@ -49,7 +57,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiErrorResponse> parametroInvalido(MethodArgumentTypeMismatchException ex) {
         Map<String, String> errores = Map.of(ex.getName(), "El valor no tiene el formato esperado");
-        return construir(HttpStatus.BAD_REQUEST, "Parámetro de ruta inválido", errores);
+        // ?page=abc es un parámetro de consulta: mismo mensaje que las demás validaciones del catálogo (CA-8)
+        String mensaje = ex.getParameter().hasParameterAnnotation(RequestParam.class)
+                ? "Parámetros de consulta inválidos"
+                : "Parámetro de ruta inválido";
+        return construir(HttpStatus.BAD_REQUEST, mensaje, errores);
     }
 
     // Red de seguridad ante la restricción única de la BD (dos peticiones simultáneas con el mismo nombre)
