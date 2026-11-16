@@ -12,6 +12,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import java.util.LinkedHashMap;
@@ -56,7 +57,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiErrorResponse> parametroInvalido(MethodArgumentTypeMismatchException ex) {
         Map<String, String> errores = Map.of(ex.getName(), "El valor no tiene el formato esperado");
-        return construir(HttpStatus.BAD_REQUEST, "Parámetro de ruta inválido", errores);
+        // ?page=abc es un parámetro de consulta: mismo mensaje que las demás validaciones del catálogo (CA-8)
+        String mensaje = ex.getParameter().hasParameterAnnotation(RequestParam.class)
+                ? "Parámetros de consulta inválidos"
+                : "Parámetro de ruta inválido";
+        return construir(HttpStatus.BAD_REQUEST, mensaje, errores);
     }
 
     // Red de seguridad ante la restricción única de la BD (dos peticiones simultáneas con el mismo nombre)

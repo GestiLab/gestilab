@@ -125,8 +125,18 @@ class UnidadControllerCatalogoTest {
         mockMvc.perform(get(RUTA).param("page", "abc"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.mensaje").value("Parámetros de consulta inválidos"))
                 .andExpect(jsonPath("$.errores.page").exists());
 
         verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("un id no numérico en la ruta sigue respondiendo \"Parámetro de ruta inválido\"")
+    void idNoNumericoEnLaRuta() throws Exception {
+        mockMvc.perform(get(RUTA + "/abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje").value("Parámetro de ruta inválido"))
+                .andExpect(jsonPath("$.errores.id").exists());
     }
 }
