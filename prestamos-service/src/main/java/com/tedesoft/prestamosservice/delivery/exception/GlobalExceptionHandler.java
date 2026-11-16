@@ -4,6 +4,7 @@ import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleExc
 import com.tedesoft.prestamosservice.domain.exception.DependenciaRechazadaException;
 import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;
+import com.tedesoft.prestamosservice.domain.exception.FotoInvalidaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -32,6 +33,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> reglaNegocio(ReglaNegocioException ex) {
         log.warn("Regla de negocio: {}", ex.getMessage());
         return construir(HttpStatus.CONFLICT, ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(FotoInvalidaException.class)
+    public ResponseEntity<ApiErrorResponse> fotoInvalida(FotoInvalidaException ex) {
+        log.warn("Fotografía inválida: {}", ex.getMessage());
+        return construir(HttpStatus.BAD_REQUEST, ex.getMessage(), null);
     }
 
     @ExceptionHandler(DependenciaNoDisponibleException.class)
