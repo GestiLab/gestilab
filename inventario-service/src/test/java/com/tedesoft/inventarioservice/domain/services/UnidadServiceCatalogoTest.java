@@ -25,6 +25,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -92,6 +93,39 @@ class UnidadServiceCatalogoTest {
                 .hasFieldOrPropertyWithValue("campo", "size");
 
         verifyNoInteractions(unidadRepository);
+    }
+
+    @Test
+    @DisplayName("CA-8: un tamaño mayor que 100 lanza ParametroInvalidoException y no consulta la base")
+    void tamanoMayorQueElTope() {
+        assertThatThrownBy(() -> service.listar(null, null, null, 0, 101))
+                .isInstanceOf(ParametroInvalidoException.class)
+                .hasFieldOrPropertyWithValue("campo", "size")
+                .hasMessageContaining("100");
+
+        verifyNoInteractions(unidadRepository);
+    }
+
+    @Test
+    @DisplayName("un tamaño de exactamente 100 se acepta")
+    void tamanoEnElTope() {
+        repositorioDevuelve(new PageImpl<>(List.of()));
+
+        assertThat(service.listar(null, null, null, 0, 100)).isNotNull();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    @DisplayName("CA-6: una página tan lejana que desborda el desplazamiento responde vacía con el total real")
+    void paginaQueDesbordaElDesplazamiento() {
+        when(unidadRepository.count(any(Specification.class))).thenReturn(120L);
+
+        Page<Unidad> pagina = service.listar(null, null, null, Integer.MAX_VALUE, 20);
+
+        assertThat(pagina.getContent()).isEmpty();
+        assertThat(pagina.getTotalElements()).isEqualTo(120);
+        assertThat(pagina.getNumber()).isEqualTo(Integer.MAX_VALUE);
+        verify(unidadRepository, never()).findAll(any(Specification.class), any(Pageable.class));
     }
 
     @Test

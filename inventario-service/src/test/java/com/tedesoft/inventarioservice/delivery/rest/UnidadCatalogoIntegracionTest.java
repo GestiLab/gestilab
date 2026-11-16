@@ -262,6 +262,25 @@ class UnidadCatalogoIntegracionTest {
     }
 
     @Test
+    @DisplayName("CA-8: size mayor que 100 responde 400 e indica el campo size; 100 se acepta")
+    void tamanoMayorQueElTope() throws Exception {
+        mockMvc.perform(get(UNIDADES).param("size", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.size", containsString("100")));
+        assertThat(consultar("size", "100").get("content").size()).isEqualTo(100);
+    }
+
+    @Test
+    @DisplayName("CA-6: una página enorme (desborda el desplazamiento) responde 200 vacía, no 500")
+    void paginaEnorme() throws Exception {
+        JsonNode pagina = consultar("page", String.valueOf(Integer.MAX_VALUE), "size", "20");
+
+        assertThat(pagina.get("content").size()).isZero();
+        assertThat(pagina.get("totalElements").asLong()).isEqualTo(120);
+        assertThat(pagina.get("totalPages").asInt()).isEqualTo(6);
+    }
+
+    @Test
     @DisplayName("un estado desconocido responde 400 y lista los estados permitidos")
     void estadoDesconocido() throws Exception {
         mockMvc.perform(get(UNIDADES).param("estado", "perdida"))

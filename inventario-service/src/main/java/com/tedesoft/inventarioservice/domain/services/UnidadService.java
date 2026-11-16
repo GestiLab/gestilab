@@ -10,9 +10,11 @@ import com.tedesoft.inventarioservice.domain.repositories.TipoEquipoRepository;
 import com.tedesoft.inventarioservice.domain.repositories.UnidadSpecification;
 import com.tedesoft.inventarioservice.domain.repositories.UnidadRepository;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,9 @@ import java.util.List;
 @Service
 @Transactional
 public class UnidadService {
+
+    /** Tope del tamaño de página del catálogo: evita traer el inventario completo en una sola petición. */
+    public static final int TAMANO_MAXIMO_PAGINA = 100;
 
     private final UnidadRepository unidadRepository;
     private final TipoEquipoRepository tipoEquipoRepository;
@@ -43,6 +48,10 @@ public class UnidadService {
         if (size <= 0) {
             throw new ParametroInvalidoException("size", "El tamaño de página debe ser mayor que cero");
         }
+        if (size > TAMANO_MAXIMO_PAGINA) {
+            throw new ParametroInvalidoException("size",
+                    "El tamaño de página no puede superar " + TAMANO_MAXIMO_PAGINA);
+        }
 
         EstadoUnidad estadoFiltro = null;
         if (estado != null && !estado.isBlank()) {
@@ -54,8 +63,14 @@ public class UnidadService {
         }
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id"));
-        return unidadRepository.findAll(
-                UnidadSpecification.filtrar(tipoId, estadoFiltro, tiposCuyoNombreContiene(nombre)), pageable);
+        Specification<Unidad> filtro =
+                UnidadSpecification.filtrar(tipoId, estadoFiltro, tiposCuyoNombreContiene(nombre));
+        // Spring Data pasa el desplazamiento (page * size) a la consulta como int: si no cabe, fallaba con 500.
+        // Una página tan lejana está fuera de rango igual que la 50 (CA-6): vacía y con el total real.
+        if (pageable.getOffset() > Integer.MAX_VALUE) {
+            return new PageImpl<>(List.of(), pageable, unidadRepository.count(filtro));
+        }
+        return unidadRepository.findAll(filtro, pageable);
     }
 
     /**
