@@ -20,6 +20,12 @@ resumen_final() {
     grep -a -E "^\[(INFO|WARNING|ERROR)\] Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$" "$1" | tail -1 | sed -E 's/^\[[A-Z]+\] //'
 }
 
+# "N clase" por cada clase de prueba con pruebas saltadas. Dentro del contenedor no hay Docker, así que las que
+# usan Testcontainers (PostgreSQL, RabbitMQ) se saltan en las dos corridas: la comparación no las cubre.
+saltadas_por_clase() {
+    grep -a -E "Tests run:.*Skipped: [1-9][0-9]*.* -- in " "$1" | sed -E 's/^\[[A-Z]+\] //; s/.*Skipped: ([0-9]+).* -- in (.*)$/\1 \2/' | sort -k2
+}
+
 {
     echo "fecha real del contenedor : $(date -u '+%Y-%m-%d %H:%M:%S')"
     echo "fecha con libfaketime ($DESPLAZAMIENTO): $(LD_PRELOAD="$LIB" FAKETIME="$DESPLAZAMIENTO" date -u '+%Y-%m-%d %H:%M:%S')"
@@ -28,6 +34,7 @@ resumen_final() {
 } > "$SALIDA/faketime.txt"
 
 veredicto_global=IDENTICO
+rm -f "$SALIDA/faketime-saltadas.tmp"
 for s in "${SERVICIOS[@]}"; do
     rm -rf "/trabajo/$s"; mkdir -p "/trabajo/$s"
     (cd "/src/$s" && tar --exclude=./target -cf - .) | tar -xf - -C "/trabajo/$s"
@@ -61,6 +68,11 @@ for s in "${SERVICIOS[@]}"; do
         echo "fecha normal    : $(resumen_final "$SALIDA/faketime-$s-normal.log")  (código $codigo_normal)"
         echo "fecha adelantada: $(resumen_final "$SALIDA/faketime-$s-adelantada.log")  (código $codigo_adelantada, $usado)"
         echo "resultado       : $veredicto"
+        saltadas=$(saltadas_por_clase "$SALIDA/faketime-$s-adelantada.log")
+        total_saltadas=$(awk '{n+=$1} END{print n+0}' <<<"$saltadas")
+        echo "saltadas en el contenedor (necesitan Docker): $total_saltadas"
+        [ -n "$saltadas" ] && sed 's/^/   /' <<<"$saltadas"
+        echo "SALTADAS_$s=$total_saltadas" >> "$SALIDA/faketime-saltadas.tmp"
         if [ "$veredicto" == DISTINTO ]; then
             echo "diferencias por clase (< normal, > adelantada):"
             diff <(echo "$r_normal") <(echo "$r_adelantada") | sed 's/^/   /'
@@ -68,6 +80,8 @@ for s in "${SERVICIOS[@]}"; do
         echo
     } >> "$SALIDA/faketime.txt"
 done
+echo "Las pruebas saltadas no se comparan: solo se comparan las que corren sin Docker." >> "$SALIDA/faketime.txt"
+cat "$SALIDA/faketime-saltadas.tmp" >> "$SALIDA/faketime.txt" && rm -f "$SALIDA/faketime-saltadas.tmp"
 echo "VEREDICTO_FAKETIME=$veredicto_global" >> "$SALIDA/faketime.txt"
 # Lo escrito en /salida queda a nombre del usuario que lanzó medir.sh, no de root
 if [ -n "${HOST_UID:-}" ]; then chown -R "$HOST_UID:${HOST_GID:-$HOST_UID}" "$SALIDA" 2>/dev/null || true; fi
