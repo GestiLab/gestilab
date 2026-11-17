@@ -6,6 +6,7 @@ import com.tedesoft.prestamosservice.delivery.rest.dto.PrestamoRetrasadoResponse
 import com.tedesoft.prestamosservice.delivery.rest.dto.SolicitudPrestamoRequestDto;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
+import com.tedesoft.prestamosservice.domain.exception.FotoInvalidaException;
 import com.tedesoft.prestamosservice.domain.services.IPrestamoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -74,82 +75,45 @@ public class PrestamoRestController {
     }
 
 
-    // SCRUM-19: Registrar entrega de una unidad
+    /**
+     * Registra la entrega (SOLICITADO a ENTREGADO). La fotografía es obligatoria (SCRUM-22, CA-5): llega como
+     * la parte {@code foto} de una petición multipart. Sin ella responde 400 y el préstamo no cambia de estado.
+     */
     @PatchMapping("/{id}/entregar")
     public ResponseEntity<PrestamoResponseDto> entregar(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @RequestParam(name = "foto", required = false) MultipartFile foto) {
 
-        Prestamo prestamo = prestamoService.entregar(id);
+        exigirFotografia(foto);
 
-        return ResponseEntity.ok(
-                PrestamoResponseDto.desde(prestamo)
-        );
+        return ResponseEntity.ok(PrestamoResponseDto.desde(
+                prestamoService.entregarConFoto(id, leerFotografia(foto), foto.getContentType())));
     }
 
-    // SCRUM-19: Registrar devolución de una unidad
+    /** Registra la devolución (ENTREGADO a DEVUELTO), también con fotografía obligatoria. */
     @PatchMapping("/{id}/recibir")
     public ResponseEntity<PrestamoResponseDto> recibir(
-            @PathVariable Long id) {
-
-        Prestamo prestamo = prestamoService.recibir(id);
-
-        return ResponseEntity.ok(
-                PrestamoResponseDto.desde(prestamo)
-        );
-    }
-
-
-    // Registrar entrega con fotografía
-    @PatchMapping(
-            path = "/{id}/entregar",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
-    )
-    public ResponseEntity<PrestamoResponseDto> entregarConFoto(
             @PathVariable Long id,
-            @RequestParam("foto") MultipartFile foto) {
+            @RequestParam(name = "foto", required = false) MultipartFile foto) {
 
-        Prestamo prestamo = prestamoService.entregarConFoto(
-                id,
-                leerFotografia(foto),
-                foto.getContentType()
-        );
+        exigirFotografia(foto);
 
-        return ResponseEntity.ok(
-                PrestamoResponseDto.desde(prestamo)
-        );
+        return ResponseEntity.ok(PrestamoResponseDto.desde(
+                prestamoService.recibirConFoto(id, leerFotografia(foto), foto.getContentType())));
     }
 
-    // Registrar devolución con fotografía
-    @PatchMapping(
-            path = "/{id}/recibir",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
-    )
-    public ResponseEntity<PrestamoResponseDto> recibirConFoto(
-            @PathVariable Long id,
-            @RequestParam("foto") MultipartFile foto) {
-
-        Prestamo prestamo = prestamoService.recibirConFoto(
-                id,
-                leerFotografia(foto),
-                foto.getContentType()
-        );
-
-        return ResponseEntity.ok(
-                PrestamoResponseDto.desde(prestamo)
-        );
+    /** Sin la parte {@code foto} (o sin petición multipart) Spring la entrega como null: se rechaza aquí. */
+    private void exigirFotografia(MultipartFile foto) {
+        if (foto == null) {
+            throw new FotoInvalidaException("La fotografía es obligatoria");
+        }
     }
 
-    // Leer los bytes del archivo recibido
     private byte[] leerFotografia(MultipartFile foto) {
         try {
             return foto.getBytes();
         } catch (IOException ex) {
-            throw new UncheckedIOException(
-                    "No se pudo leer la fotografía",
-                    ex
-            );
+            throw new UncheckedIOException("No se pudo leer la fotografía", ex);
         }
     }
-
-
 }

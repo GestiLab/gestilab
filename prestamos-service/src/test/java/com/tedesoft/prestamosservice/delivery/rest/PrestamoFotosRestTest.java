@@ -27,6 +27,7 @@ import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(PrestamoRestController.class)
@@ -336,6 +337,80 @@ class PrestamoFotosRestTest {
                 )
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.status").value(503));
+    }
+
+    // ------------------------------------------------------------------ CA-5: la foto es obligatoria
+
+    @Test
+    void entregarSinCuerpo_debeResponder400SinTocarElPrestamo()
+            throws Exception {
+
+        mockMvc.perform(
+                        patch(RUTA + "/1/entregar")
+                                .accept(MediaType.APPLICATION_JSON)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.mensaje")
+                        .value("La fotografía es obligatoria"));
+
+        verifyNoInteractions(prestamoService);
+    }
+
+    @Test
+    void recibirSinCuerpo_debeResponder400SinTocarElPrestamo()
+            throws Exception {
+
+        mockMvc.perform(
+                        patch(RUTA + "/1/recibir")
+                                .accept(MediaType.APPLICATION_JSON)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje")
+                        .value("La fotografía es obligatoria"));
+
+        verifyNoInteractions(prestamoService);
+    }
+
+    @Test
+    void entregarConJsonEnVezDeFoto_debeResponder400()
+            throws Exception {
+
+        mockMvc.perform(
+                        patch(RUTA + "/1/entregar")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}")
+                                .accept(MediaType.APPLICATION_JSON)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje")
+                        .value("La fotografía es obligatoria"));
+
+        verifyNoInteractions(prestamoService);
+    }
+
+    @Test
+    void multipartSinLaParteFoto_debeResponder400ConElMotivo()
+            throws Exception {
+
+        MockMultipartFile otraParte = new MockMultipartFile(
+                "otra", "x.txt", "text/plain", new byte[]{1}
+        );
+
+        mockMvc.perform(
+                        multipart(RUTA + "/1/recibir")
+                                .file(otraParte)
+                                .with(request -> {
+                                    request.setMethod("PATCH");
+                                    return request;
+                                })
+                                .accept(MediaType.APPLICATION_JSON)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje")
+                        .value("La fotografía es obligatoria"));
+
+        verifyNoInteractions(prestamoService);
     }
 
 }
