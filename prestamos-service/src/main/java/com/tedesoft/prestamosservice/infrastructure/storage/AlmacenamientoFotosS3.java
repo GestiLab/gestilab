@@ -15,6 +15,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
@@ -69,7 +70,12 @@ public class AlmacenamientoFotosS3 implements IAlmacenamientoFotos {
                 .credentialsProvider(DefaultCredentialsProvider.builder().build())
                 .overrideConfiguration(configuracion -> configuracion
                         .apiCallTimeout(tope)
-                        .apiCallAttemptTimeout(tope));
+                        .apiCallAttemptTimeout(tope))
+                // La foto viaja tal cual, sin la envoltura aws-chunked (trozos firmados y checksum al final) que
+                // el SDK usa por defecto: un almacenamiento compatible que no la entiende (SeaweedFS 3.97)
+                // guardaría la envoltura en lugar de la imagen. La foto ya está entera en memoria y la firma
+                // cubre su contenido completo; el checksum viaja como cabecera.
+                .serviceConfiguration(S3Configuration.builder().chunkedEncodingEnabled(false).build());
         if (endpoint != null && !endpoint.isBlank()) {
             constructor.endpointOverride(URI.create(endpoint))
                     .forcePathStyle(true);
