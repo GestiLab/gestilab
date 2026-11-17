@@ -6,7 +6,7 @@ como archivos.
 
 ## Cómo repetirla
 
-Requisitos: Java 21, Maven 3.9, Docker encendido y acceso a internet la primera vez (descarga dependencias).
+Requisitos: Java 21, Maven 3.9 o más nuevo (`entorno.txt` guarda la versión usada), Docker encendido y acceso a internet la primera vez (descarga dependencias).
 
 ```bash
 docs/mediciones/rq-02/medir.sh
@@ -33,8 +33,11 @@ Limpieza de lo que crea en Docker (opcional): `docker rmi gestilab-rq02-faketime
 ## Cosas que conviene saber
 
 - **El contenedor** parte de `maven:3.9-eclipse-temurin-21-alpine` (la imagen de Maven de referencia del proyecto) y
-  agrega `libfaketime`; su Dockerfile está en esta carpeta y no en los servicios. Las pruebas usan H2, así que no hace falta
-  Docker dentro de Docker. Con la fecha adelantada corre sin red (`mvn -o`), porque con otra fecha fallaría la
+  agrega `libfaketime`; su Dockerfile está en esta carpeta y no en los servicios. La mayoría de las pruebas usan H2 y corren
+  dentro del contenedor; las que usan Docker de verdad (Testcontainers con PostgreSQL y RabbitMQ en
+  `prestamos-service`, 8 de ellas más 2 opcionales) **se saltan** porque dentro del contenedor no hay Docker. Se saltan
+  igual con la fecha normal y con la adelantada, así que el "idéntico" cubre las demás. `faketime.txt` y `resumen.md`
+  dicen cuántas se saltan por servicio y cuáles son; el informe final debe citar esa cifra. Con la fecha adelantada corre sin red (`mvn -o`), porque con otra fecha fallaría la
   validación de los certificados de descarga.
 - **Si la JVM se cuelga** con libfaketime, el script lo detecta a los 15 minutos y repite con
   `FAKETIME_DONT_FAKE_MONOTONIC=1`; el archivo `faketime.txt` dice qué variante se usó.
@@ -45,6 +48,9 @@ Limpieza de lo que crea en Docker (opcional): `docker rmi gestilab-rq02-faketime
   de ensayo, pero sus números no son los del informe.
 - **Sistemas:** probado en macOS y Linux; en Windows se ejecuta desde WSL.
 - **Los números dependen de la máquina** (sobre todo el tiempo): el informe debe decir en cuál se midió (`entorno.txt`).
+  En los ensayos del 17 de noviembre de 2026 (commit `d800d59`, 10 núcleos y 7,7 GB para Docker), `prestamos-service`
+  tardó entre 42 s y 48 s de los 60 s permitidos según la corrida: el margen es de 12 a 18 s y cada prueba nueva
+  con Docker se suma a él.
 - **Un hallazgo no es un fallo de la medición:** si la cobertura queda bajo 70 %, se registra como hallazgo y no se
   escriben pruebas nuevas solo para subirla.
 
@@ -60,4 +66,5 @@ Se completa al terminar el Sprint 3, con el `resumen.md` de la corrida sobre `ma
 | Tiempo del conjunto completo, `prestamos-service` | _pendiente_ | < 60 s |
 | Llamadas al reloj del sistema en el dominio | _pendiente_ | 0 |
 | Pruebas con la fecha adelantada un año | _pendiente_ | idéntico |
+| Pruebas que no se comparan en el contenedor (necesitan Docker), por servicio | _pendiente_ | informativo |
 | Regla del retraso invertida | _pendiente_ | al menos una prueba falla nombrando la regla |

@@ -165,6 +165,12 @@ veredicto() { [ "$1" -eq 0 ] && echo "cumple" || echo "NO cumple"; }
     echo "| Llamadas al reloj del sistema en el dominio | $total_reloj | 0 |"
     veredicto_faketime=$(grep -o 'VEREDICTO_FAKETIME=.*' "$SALIDA/faketime.txt" 2>/dev/null | cut -d= -f2 | tr 'A-Z' 'a-z' | sed 's/identico/idéntico/')
     echo "| Pruebas con la fecha adelantada un año | ${veredicto_faketime:-no medido} respecto a la fecha normal | idéntico |"
+    saltadas_contenedor=""
+    for s in "${SERVICIOS[@]}"; do
+        n=$(grep -o "^SALTADAS_$s=.*" "$SALIDA/faketime.txt" 2>/dev/null | cut -d= -f2)
+        saltadas_contenedor="${saltadas_contenedor:+$saltadas_contenedor · }$s: ${n:-?}"
+    done
+    echo "| Pruebas que no se comparan con la fecha adelantada (necesitan Docker, no hay dentro del contenedor) | $saltadas_contenedor | informativo |"
     echo "| Regla del retraso invertida | $(grep -o 'VEREDICTO_REGLA=.*' "$SALIDA/regla-invertida.txt" | cut -d= -f2 | tr 'A-Z_' 'a-z ') | al menos una prueba falla nombrando la regla |"
     echo
     echo "Archivos: \`cobertura.txt\`, \`jacoco-*.csv\`, \`tiempos.txt\`, \`reloj-sistema.txt\`, \`faketime.txt\`, \`regla-invertida.txt\`, \`entorno.txt\`."
