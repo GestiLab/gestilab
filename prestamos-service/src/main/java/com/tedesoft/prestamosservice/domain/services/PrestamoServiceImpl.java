@@ -16,7 +16,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.tedesoft.prestamosservice.domain.clients.IAlmacenamientoFotos;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import lombok.extern.slf4j.Slf4j;
@@ -54,14 +53,7 @@ public class PrestamoServiceImpl implements IPrestamoService {
     private final IFechaService fechaService;
     private final IEventoUnidadPendiente eventosPendientes;
     private final IControlConcurrencia controlConcurrencia;
-
-    private IAlmacenamientoFotos almacenamientoFotos;
-
-    @Autowired
-    public void configurarAlmacenamientoFotos(
-            IAlmacenamientoFotos almacenamientoFotos) {
-        this.almacenamientoFotos = almacenamientoFotos;
-    }
+    private final IAlmacenamientoFotos almacenamientoFotos;
 
     // ==========================================
     // SOLICITAR UN PRESTAMO (CODIGO EXISTENTE)
@@ -114,67 +106,38 @@ public class PrestamoServiceImpl implements IPrestamoService {
     }
 
     // ==========================================
-    // SCRUM-19: ENTREGAR UNA UNIDAD
+    // SCRUM-19: ENTREGAR Y RECIBIR UNA UNIDAD
     // ==========================================
 
-
+    // Sin foto: operación del dominio. La ruta HTTP no la usa, porque exige foto (SCRUM-22, CA-5): llama a
+    // entregarConFoto y recibirConFoto, que comparten estos mismos pasos.
     @Override
     @Transactional
     public Prestamo entregar(Long prestamoId) {
 
-        Prestamo prestamo = prestamoDao.buscarParaActualizar(prestamoId)
-                .orElseThrow(() ->
-                        new RecursoNoEncontradoException(
-                                "Préstamo " + prestamoId + " no encontrado"
-                        )
-                );
+        Prestamo prestamo = buscarParaCambiarDeEstado(prestamoId);
 
         // SOLICITADO -> ENTREGADO
         prestamo.entregar();
 
-        Prestamo guardado = prestamoDao.save(prestamo);
-
-        // Registrar evento pendiente para inventario.
-        eventosPendientes.guardar(
-                guardado.getUnidadId(),
-                EstadoUnidad.PRESTADA.name(),
-                fechaService.ahora()
-        );
-
-        return guardado;
+        return guardarYAvisarAInventario(prestamo, EstadoUnidad.PRESTADA);
     }
-
-    // ==========================================
-    // SCRUM-19: RECIBIR UNA UNIDAD
-    // ==========================================
-
 
     @Override
     @Transactional
     public Prestamo recibir(Long prestamoId) {
 
-        Prestamo prestamo = prestamoDao.buscarParaActualizar(prestamoId)
-                .orElseThrow(() ->
-                        new RecursoNoEncontradoException(
-                                "Préstamo " + prestamoId + " no encontrado"
-                        )
-                );
+        Prestamo prestamo = buscarParaCambiarDeEstado(prestamoId);
 
         // ENTREGADO -> DEVUELTO
         prestamo.recibir();
 
-        Prestamo guardado = prestamoDao.save(prestamo);
-
-        // Registrar evento pendiente para inventario.
-        eventosPendientes.guardar(
-                guardado.getUnidadId(),
-                EstadoUnidad.DISPONIBLE.name(),
-                fechaService.ahora()
-        );
-
-        return guardado;
+        return guardarYAvisarAInventario(prestamo, EstadoUnidad.DISPONIBLE);
     }
 
+    // ==========================================
+    // SCRUM-22: ENTREGAR Y RECIBIR CON FOTOGRAFIA
+    // ==========================================
 
     @Override
     @Transactional
@@ -183,38 +146,16 @@ public class PrestamoServiceImpl implements IPrestamoService {
             byte[] contenido,
             String tipoMime) {
 
-        String mimeValidado = ValidadorFotos.validar(
-                contenido, tipoMime
-        );
+        // Primero la foto (400) y el estado (404/409): nada se sube a S3 si la operación no puede hacerse.
+        String mimeValidado = ValidadorFotos.validar(contenido, tipoMime);
 
-        Prestamo prestamo = prestamoDao.buscarParaActualizar(prestamoId)
-                .orElseThrow(() -> new RecursoNoEncontradoException(
-                        "Préstamo " + prestamoId + " no encontrado"
-                ));
-
-        // Comprueba que el préstamo se puede entregar.
+        Prestamo prestamo = buscarParaCambiarDeEstado(prestamoId);
         prestamo.entregar();
 
-        // Subir la fotografía a S3.
-        String clave = almacenamientoFotos.guardar(
-                contenido, mimeValidado
-        );
+        // Solo la clave va a PostgreSQL; la imagen, a S3.
+        prestamo.registrarFotoEntrega(subirFoto(contenido, mimeValidado));
 
-        registrarLimpiezaSiRollback(clave);
-
-        // Guardar únicamente la clave en PostgreSQL.
-        prestamo.registrarFotoEntrega(clave);
-
-        Prestamo guardado = prestamoDao.save(prestamo);
-
-        // Mantener el evento pendiente para inventario.
-        eventosPendientes.guardar(
-                guardado.getUnidadId(),
-                EstadoUnidad.PRESTADA.name(),
-                fechaService.ahora()
-        );
-
-        return guardado;
+        return guardarYAvisarAInventario(prestamo, EstadoUnidad.PRESTADA);
     }
 
     @Override
@@ -224,37 +165,41 @@ public class PrestamoServiceImpl implements IPrestamoService {
             byte[] contenido,
             String tipoMime) {
 
-        String mimeValidado = ValidadorFotos.validar(
-                contenido, tipoMime
-        );
+        String mimeValidado = ValidadorFotos.validar(contenido, tipoMime);
 
-        Prestamo prestamo = prestamoDao.buscarParaActualizar(prestamoId)
-                .orElseThrow(() -> new RecursoNoEncontradoException(
-                        "Préstamo " + prestamoId + " no encontrado"
-                ));
-
-        // Comprueba que el préstamo se puede devolver.
+        Prestamo prestamo = buscarParaCambiarDeEstado(prestamoId);
         prestamo.recibir();
 
-        // Subir la fotografía a S3.
-        String clave = almacenamientoFotos.guardar(
-                contenido, mimeValidado
-        );
+        prestamo.registrarFotoDevolucion(subirFoto(contenido, mimeValidado));
 
-        registrarLimpiezaSiRollback(clave);
+        return guardarYAvisarAInventario(prestamo, EstadoUnidad.DISPONIBLE);
+    }
 
-        prestamo.registrarFotoDevolucion(clave);
+    /** Busca el préstamo bloqueando su fila: dos cambios de estado simultáneos no se pisan. */
+    private Prestamo buscarParaCambiarDeEstado(Long prestamoId) {
+        return prestamoDao.buscarParaActualizar(prestamoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "Préstamo " + prestamoId + " no encontrado"));
+    }
 
+    /** Guarda el préstamo y deja el evento pendiente para inventario en la misma transacción (D-13). */
+    private Prestamo guardarYAvisarAInventario(Prestamo prestamo, EstadoUnidad nuevoEstadoDeLaUnidad) {
         Prestamo guardado = prestamoDao.save(prestamo);
 
-        // Mantener el evento pendiente para inventario.
         eventosPendientes.guardar(
                 guardado.getUnidadId(),
-                EstadoUnidad.DISPONIBLE.name(),
+                nuevoEstadoDeLaUnidad.name(),
                 fechaService.ahora()
         );
 
         return guardado;
+    }
+
+    /** Sube la foto y, si la transacción no termina bien, la borra de S3 para no dejarla huérfana. */
+    private String subirFoto(byte[] contenido, String tipoMime) {
+        String clave = almacenamientoFotos.guardar(contenido, tipoMime);
+        registrarLimpiezaSiRollback(clave);
+        return clave;
     }
 
     // ==========================================

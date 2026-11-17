@@ -66,7 +66,8 @@ class PrestamoServiceImplTest {
                 inventarioClient,
                 new FechaServiceImpl(reloj),
                 Mockito.mock(IEventoUnidadPendiente.class),
-                (clave, accion) -> accion.get());
+                (clave, accion) -> accion.get(),
+                null);
     }
 
     private static UnidadInventario unidad(EstadoUnidad estado, int duracionDias) {

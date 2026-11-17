@@ -66,10 +66,7 @@ class PrestamoFotosServiceTest {
                 inventarioClient,
                 fechaService,
                 eventosPendientes,
-                (clave, accion) -> accion.get()
-        );
-
-        servicio.configurarAlmacenamientoFotos(
+                (clave, accion) -> accion.get(),
                 almacenamientoFotos
         );
 
