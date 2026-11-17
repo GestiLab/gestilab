@@ -15,6 +15,10 @@ import com.tedesoft.prestamosservice.domain.repositories.IPrestamoDao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.tedesoft.prestamosservice.domain.clients.IAlmacenamientoFotos;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.util.Comparator;
@@ -28,6 +32,7 @@ import com.tedesoft.prestamosservice.domain.clients.IEventoUnidadPendiente;
  * La duración se obtiene del servicio de inventario.
  * SCRUM-19 agrega entrega y devolución de unidades.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PrestamoServiceImpl implements IPrestamoService {
@@ -48,6 +53,8 @@ public class PrestamoServiceImpl implements IPrestamoService {
     private final IFechaService fechaService;
     private final IEventoUnidadPendiente eventosPendientes;
     private final IControlConcurrencia controlConcurrencia;
+    private final IAlmacenamientoFotos almacenamientoFotos;
+
     // ==========================================
     // SOLICITAR UN PRESTAMO (CODIGO EXISTENTE)
     // ==========================================
@@ -99,65 +106,100 @@ public class PrestamoServiceImpl implements IPrestamoService {
     }
 
     // ==========================================
-    // SCRUM-19: ENTREGAR UNA UNIDAD
+    // SCRUM-19: ENTREGAR Y RECIBIR UNA UNIDAD
     // ==========================================
 
-
+    // Sin foto: operación del dominio. La ruta HTTP no la usa, porque exige foto (SCRUM-22, CA-5): llama a
+    // entregarConFoto y recibirConFoto, que comparten estos mismos pasos.
     @Override
     @Transactional
     public Prestamo entregar(Long prestamoId) {
 
-        Prestamo prestamo = prestamoDao.buscarParaActualizar(prestamoId)
-                .orElseThrow(() ->
-                        new RecursoNoEncontradoException(
-                                "Préstamo " + prestamoId + " no encontrado"
-                        )
-                );
+        Prestamo prestamo = buscarParaCambiarDeEstado(prestamoId);
 
         // SOLICITADO -> ENTREGADO
         prestamo.entregar();
 
+        return guardarYAvisarAInventario(prestamo, EstadoUnidad.PRESTADA);
+    }
+
+    @Override
+    @Transactional
+    public Prestamo recibir(Long prestamoId) {
+
+        Prestamo prestamo = buscarParaCambiarDeEstado(prestamoId);
+
+        // ENTREGADO -> DEVUELTO
+        prestamo.recibir();
+
+        return guardarYAvisarAInventario(prestamo, EstadoUnidad.DISPONIBLE);
+    }
+
+    // ==========================================
+    // SCRUM-22: ENTREGAR Y RECIBIR CON FOTOGRAFIA
+    // ==========================================
+
+    @Override
+    @Transactional
+    public Prestamo entregarConFoto(
+            Long prestamoId,
+            byte[] contenido,
+            String tipoMime) {
+
+        // Primero la foto (400) y el estado (404/409): nada se sube a S3 si la operación no puede hacerse.
+        String mimeValidado = ValidadorFotos.validar(contenido, tipoMime);
+
+        Prestamo prestamo = buscarParaCambiarDeEstado(prestamoId);
+        prestamo.entregar();
+
+        // Solo la clave va a PostgreSQL; la imagen, a S3.
+        prestamo.registrarFotoEntrega(subirFoto(contenido, mimeValidado));
+
+        return guardarYAvisarAInventario(prestamo, EstadoUnidad.PRESTADA);
+    }
+
+    @Override
+    @Transactional
+    public Prestamo recibirConFoto(
+            Long prestamoId,
+            byte[] contenido,
+            String tipoMime) {
+
+        String mimeValidado = ValidadorFotos.validar(contenido, tipoMime);
+
+        Prestamo prestamo = buscarParaCambiarDeEstado(prestamoId);
+        prestamo.recibir();
+
+        prestamo.registrarFotoDevolucion(subirFoto(contenido, mimeValidado));
+
+        return guardarYAvisarAInventario(prestamo, EstadoUnidad.DISPONIBLE);
+    }
+
+    /** Busca el préstamo bloqueando su fila: dos cambios de estado simultáneos no se pisan. */
+    private Prestamo buscarParaCambiarDeEstado(Long prestamoId) {
+        return prestamoDao.buscarParaActualizar(prestamoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "Préstamo " + prestamoId + " no encontrado"));
+    }
+
+    /** Guarda el préstamo y deja el evento pendiente para inventario en la misma transacción (D-13). */
+    private Prestamo guardarYAvisarAInventario(Prestamo prestamo, EstadoUnidad nuevoEstadoDeLaUnidad) {
         Prestamo guardado = prestamoDao.save(prestamo);
 
-        // Registrar evento pendiente para inventario.
         eventosPendientes.guardar(
                 guardado.getUnidadId(),
-                EstadoUnidad.PRESTADA.name(),
+                nuevoEstadoDeLaUnidad.name(),
                 fechaService.ahora()
         );
 
         return guardado;
     }
 
-    // ==========================================
-    // SCRUM-19: RECIBIR UNA UNIDAD
-    // ==========================================
-
-
-    @Override
-    @Transactional
-    public Prestamo recibir(Long prestamoId) {
-
-        Prestamo prestamo = prestamoDao.buscarParaActualizar(prestamoId)
-                .orElseThrow(() ->
-                        new RecursoNoEncontradoException(
-                                "Préstamo " + prestamoId + " no encontrado"
-                        )
-                );
-
-        // ENTREGADO -> DEVUELTO
-        prestamo.recibir();
-
-        Prestamo guardado = prestamoDao.save(prestamo);
-
-        // Registrar evento pendiente para inventario.
-        eventosPendientes.guardar(
-                guardado.getUnidadId(),
-                EstadoUnidad.DISPONIBLE.name(),
-                fechaService.ahora()
-        );
-
-        return guardado;
+    /** Sube la foto y, si la transacción no termina bien, la borra de S3 para no dejarla huérfana. */
+    private String subirFoto(byte[] contenido, String tipoMime) {
+        String clave = almacenamientoFotos.guardar(contenido, tipoMime);
+        registrarLimpiezaSiRollback(clave);
+        return clave;
     }
 
     // ==========================================
@@ -173,6 +215,32 @@ public class PrestamoServiceImpl implements IPrestamoService {
                                 "Préstamo " + id + " no encontrado"
                         )
                 );
+    }
+
+    // ==========================================
+    // SCRUM-22: RECUPERAR LAS FOTOGRAFIAS
+    // ==========================================
+
+    // Sin @Transactional a propósito: la consulta del préstamo es corta y la descarga de S3 no debe
+    // retener una conexión de la base de datos.
+    @Override
+    public IAlmacenamientoFotos.Foto obtenerFotoEntrega(Long prestamoId) {
+        Prestamo prestamo = obtenerPorId(prestamoId);
+        return recuperarFoto(prestamo.getFotoEntregaClave(), "entrega", prestamoId);
+    }
+
+    @Override
+    public IAlmacenamientoFotos.Foto obtenerFotoDevolucion(Long prestamoId) {
+        Prestamo prestamo = obtenerPorId(prestamoId);
+        return recuperarFoto(prestamo.getFotoDevolucionClave(), "devolución", prestamoId);
+    }
+
+    private IAlmacenamientoFotos.Foto recuperarFoto(String clave, String momento, Long prestamoId) {
+        if (clave == null) {
+            throw new RecursoNoEncontradoException(
+                    "El préstamo " + prestamoId + " aún no tiene fotografía de " + momento);
+        }
+        return almacenamientoFotos.recuperar(clave);
     }
 
     // ==========================================
@@ -272,4 +340,29 @@ public class PrestamoServiceImpl implements IPrestamoService {
 
         return unidad;
     }
+
+
+    private void registrarLimpiezaSiRollback(String clave) {
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+
+                    @Override
+                    public void afterCompletion(int status) {
+
+                        if (status != STATUS_COMMITTED) {
+                            try {
+                                almacenamientoFotos.eliminar(clave);
+                            } catch (RuntimeException ex) {
+                                log.error(
+                                        "No se pudo limpiar la fotografía de S3",
+                                        ex
+                                );
+                            }
+                        }
+                    }
+                }
+        );
+    }
+
 }

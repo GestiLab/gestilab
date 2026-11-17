@@ -4,11 +4,14 @@ import com.tedesoft.prestamosservice.delivery.rest.dto.FiltroPersonaDto;
 import com.tedesoft.prestamosservice.delivery.rest.dto.PrestamoResponseDto;
 import com.tedesoft.prestamosservice.delivery.rest.dto.PrestamoRetrasadoResponseDto;
 import com.tedesoft.prestamosservice.delivery.rest.dto.SolicitudPrestamoRequestDto;
+import com.tedesoft.prestamosservice.domain.clients.IAlmacenamientoFotos;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
+import com.tedesoft.prestamosservice.domain.exception.FotoInvalidaException;
 import com.tedesoft.prestamosservice.domain.services.IPrestamoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +23,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 
 import java.net.URI;
 import java.util.List;
@@ -71,28 +77,72 @@ public class PrestamoRestController {
     }
 
 
-    // SCRUM-19: Registrar entrega de una unidad
+    /**
+     * Registra la entrega (SOLICITADO a ENTREGADO). La fotografía es obligatoria (SCRUM-22, CA-5): llega como
+     * la parte {@code foto} de una petición multipart. Sin ella responde 400 y el préstamo no cambia de estado.
+     */
     @PatchMapping("/{id}/entregar")
     public ResponseEntity<PrestamoResponseDto> entregar(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @RequestParam(name = "foto", required = false) MultipartFile foto) {
 
-        Prestamo prestamo = prestamoService.entregar(id);
+        exigirFotografia(foto);
 
-        return ResponseEntity.ok(
-                PrestamoResponseDto.desde(prestamo)
-        );
+        return ResponseEntity.ok(PrestamoResponseDto.desde(
+                prestamoService.entregarConFoto(id, leerFotografia(foto), foto.getContentType())));
     }
 
-    // SCRUM-19: Registrar devolución de una unidad
+    /** Registra la devolución (ENTREGADO a DEVUELTO), también con fotografía obligatoria. */
     @PatchMapping("/{id}/recibir")
     public ResponseEntity<PrestamoResponseDto> recibir(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @RequestParam(name = "foto", required = false) MultipartFile foto) {
 
-        Prestamo prestamo = prestamoService.recibir(id);
+        exigirFotografia(foto);
 
-        return ResponseEntity.ok(
-                PrestamoResponseDto.desde(prestamo)
-        );
+        return ResponseEntity.ok(PrestamoResponseDto.desde(
+                prestamoService.recibirConFoto(id, leerFotografia(foto), foto.getContentType())));
     }
 
+    /**
+     * Fotografía de la entrega (SCRUM-22, CA-3). Devuelve la imagen tal cual con su tipo (PNG o JPEG); Angular la
+     * baja con HttpClient y el token, porque un {@code <img>} no puede enviar el encabezado Authorization.
+     * {@code produces = ALL}: los errores (404, 503) siguen siendo JSON aunque el cliente pida una imagen.
+     */
+    @GetMapping(path = "/{id}/foto-entrega", produces = MediaType.ALL_VALUE)
+    public ResponseEntity<byte[]> fotoEntrega(@PathVariable Long id) {
+        return imagen(prestamoService.obtenerFotoEntrega(id));
+    }
+
+    /** Fotografía de la devolución: solo existe en un préstamo devuelto. */
+    @GetMapping(path = "/{id}/foto-devolucion", produces = MediaType.ALL_VALUE)
+    public ResponseEntity<byte[]> fotoDevolucion(@PathVariable Long id) {
+        return imagen(prestamoService.obtenerFotoDevolucion(id));
+    }
+
+    private ResponseEntity<byte[]> imagen(IAlmacenamientoFotos.Foto foto) {
+        MediaType tipo = foto.tipoMime() == null || foto.tipoMime().isBlank()
+                ? MediaType.APPLICATION_OCTET_STREAM
+                : MediaType.parseMediaType(foto.tipoMime());
+        return ResponseEntity.ok()
+                .contentType(tipo)
+                // evidencia de un préstamo: que ningún intermediario la guarde en caché
+                .cacheControl(CacheControl.noStore())
+                .body(foto.contenido());
+    }
+
+    /** Sin la parte {@code foto} (o sin petición multipart) Spring la entrega como null: se rechaza aquí. */
+    private void exigirFotografia(MultipartFile foto) {
+        if (foto == null) {
+            throw new FotoInvalidaException("La fotografía es obligatoria");
+        }
+    }
+
+    private byte[] leerFotografia(MultipartFile foto) {
+        try {
+            return foto.getBytes();
+        } catch (IOException ex) {
+            throw new UncheckedIOException("No se pudo leer la fotografía", ex);
+        }
+    }
 }

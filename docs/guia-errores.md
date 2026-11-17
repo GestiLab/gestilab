@@ -44,11 +44,13 @@ Reglas del formato:
 | 409 | Se viola una regla de negocio. | `ReglaNegocioException` | El texto con que se lanzó la excepción. |
 | 400 | El cuerpo no cumple las validaciones (`@Valid`). | `MethodArgumentNotValidException` | `Datos de entrada inválidos` (más `errores`). |
 | 400 | El cuerpo no es un JSON legible. | `HttpMessageNotReadableException` | `El cuerpo de la petición no es un JSON válido` |
+| 400 | La fotografía de una entrega o devolución falta, está vacía, supera 5 MB o no es PNG/JPEG. Solo `prestamos-service`. | `FotoInvalidaException`, `MaxUploadSizeExceededException` | El motivo, por ejemplo `La fotografía es obligatoria`. |
 | 400 | Un parámetro de la ruta no tiene el formato esperado (por ejemplo `/prestamos/abc`). | `MethodArgumentTypeMismatchException` | `Parámetro de ruta inválido` (más `errores`). En `inventario-service`, si el parámetro es de la consulta (por ejemplo `?page=abc`), `Parámetros de consulta inválidos`. |
 | 400 | Un parámetro de la consulta del catálogo no cumple las reglas (`page` negativo, `size` fuera de 1 a 100, `estado` desconocido). Solo `inventario-service`. | `ParametroInvalidoException` | `Parámetros de consulta inválidos` (más `errores` con el campo). |
 | 404, 405, ... | Spring ya sabe qué código corresponde: por ejemplo, la ruta no existe (404) o el método no está permitido (405). | Excepciones que implementan `ErrorResponse` | La frase estándar del código (igual que `error`). |
 | 502 | `inventario-service` responde a `prestamos-service` con un 4xx distinto de 404 (400, 401, 403...). | `DependenciaRechazadaException` (la lanza `InventarioHttpClient`) | `No se pudo consultar el servicio de inventario. Contacta al administrador.` |
 | 503 | `prestamos-service` no logra respuesta de `inventario-service` (sin respuesta, tiempo agotado o 5xx). | `DependenciaNoDisponibleException` (la lanza `InventarioHttpClient`) | `El servicio de inventario no está disponible. Intenta más tarde.` |
+| 503 | `prestamos-service` no logra guardar o recuperar una fotografía: el almacenamiento S3 está caído, no responde en el tiempo máximo, falla o no está configurado. | `DependenciaNoDisponibleException` (la lanza `AlmacenamientoFotosS3`) | `El almacenamiento de fotografías no está disponible. Intenta más tarde.` |
 | 500 | Cualquier otra excepción no prevista. | `Exception` | `Error inesperado. Por favor contacta al administrador.` |
 
 Cómo usarlo desde el código:

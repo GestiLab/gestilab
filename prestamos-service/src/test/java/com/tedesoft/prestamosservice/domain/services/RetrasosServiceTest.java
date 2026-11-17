@@ -47,7 +47,8 @@ class RetrasosServiceTest {
                 inventarioClient,
                 new FechaServiceImpl(reloj),
                 Mockito.mock(IEventoUnidadPendiente.class),
-                (clave, accion) -> accion.get());
+                (clave, accion) -> accion.get(),
+                null);
     }
 
     private static Prestamo entregado(long id, long unidadId, String persona, LocalDate prevista) {

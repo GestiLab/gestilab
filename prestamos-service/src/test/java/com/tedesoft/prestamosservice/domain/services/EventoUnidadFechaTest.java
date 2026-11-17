@@ -43,7 +43,8 @@ class EventoUnidadFechaTest {
     void configurar() {
         Clock reloj = Clock.fixed(Instant.parse("2026-11-20T15:00:00Z"), BOGOTA);
         servicio = new PrestamoServiceImpl(prestamoDao, inventarioClient, new FechaServiceImpl(reloj), eventos,
-                (clave, accion) -> accion.get());
+                (clave, accion) -> accion.get(),
+                null);
     }
 
     private Prestamo prestamo() {

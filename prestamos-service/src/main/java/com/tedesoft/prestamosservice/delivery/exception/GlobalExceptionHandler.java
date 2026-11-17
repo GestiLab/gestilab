@@ -4,9 +4,12 @@ import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleExc
 import com.tedesoft.prestamosservice.domain.exception.DependenciaRechazadaException;
 import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;
+import com.tedesoft.prestamosservice.domain.exception.FotoInvalidaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.ErrorResponse;
@@ -32,6 +35,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> reglaNegocio(ReglaNegocioException ex) {
         log.warn("Regla de negocio: {}", ex.getMessage());
         return construir(HttpStatus.CONFLICT, ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(FotoInvalidaException.class)
+    public ResponseEntity<ApiErrorResponse> fotoInvalida(FotoInvalidaException ex) {
+        log.warn("Fotografía inválida: {}", ex.getMessage());
+        return construir(HttpStatus.BAD_REQUEST, ex.getMessage(), null);
+    }
+
+    /**
+     * Un archivo mayor que el máximo del multipart se rechaza antes de llegar al servicio. Spring lo
+     * traduciría a 413; SCRUM-22 (CA-6) pide 400 con el motivo, igual que cualquier otra foto inválida.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> fotoDemasiadoGrande(MaxUploadSizeExceededException ex) {
+        log.warn("Fotografía demasiado grande: {}", ex.getMessage());
+        return construir(HttpStatus.BAD_REQUEST, "La fotografía supera el tamaño máximo de 5 MB", null);
     }
 
     @ExceptionHandler(DependenciaNoDisponibleException.class)
@@ -81,7 +100,9 @@ public class GlobalExceptionHandler {
 
     private ResponseEntity<ApiErrorResponse> construir(HttpStatus status, String mensaje,
                                                        Map<String, String> errores) {
+        // JSON fijo: si el cliente pidió una imagen (Accept: image/*), el error igual debe poder escribirse
         return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(new ApiErrorResponse(status.value(), status.getReasonPhrase(), mensaje, errores));
     }
 }

@@ -52,7 +52,8 @@ class PrestamoEntregaDevolucionServiceTest {
                 inventarioClient,
                 fechaService,
                 eventosPendientes,
-                (clave, accion) -> accion.get());
+                (clave, accion) -> accion.get(),
+                null);
     }
 
     private Prestamo crearPrestamo() {
