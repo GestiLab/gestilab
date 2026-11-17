@@ -273,6 +273,32 @@ public class PrestamoServiceImpl implements IPrestamoService {
     }
 
     // ==========================================
+    // SCRUM-22: RECUPERAR LAS FOTOGRAFIAS
+    // ==========================================
+
+    // Sin @Transactional a propósito: la consulta del préstamo es corta y la descarga de S3 no debe
+    // retener una conexión de la base de datos.
+    @Override
+    public IAlmacenamientoFotos.Foto obtenerFotoEntrega(Long prestamoId) {
+        Prestamo prestamo = obtenerPorId(prestamoId);
+        return recuperarFoto(prestamo.getFotoEntregaClave(), "entrega", prestamoId);
+    }
+
+    @Override
+    public IAlmacenamientoFotos.Foto obtenerFotoDevolucion(Long prestamoId) {
+        Prestamo prestamo = obtenerPorId(prestamoId);
+        return recuperarFoto(prestamo.getFotoDevolucionClave(), "devolución", prestamoId);
+    }
+
+    private IAlmacenamientoFotos.Foto recuperarFoto(String clave, String momento, Long prestamoId) {
+        if (clave == null) {
+            throw new RecursoNoEncontradoException(
+                    "El préstamo " + prestamoId + " aún no tiene fotografía de " + momento);
+        }
+        return almacenamientoFotos.recuperar(clave);
+    }
+
+    // ==========================================
     // LISTAR PRESTAMOS RETRASADOS
     // ==========================================
 

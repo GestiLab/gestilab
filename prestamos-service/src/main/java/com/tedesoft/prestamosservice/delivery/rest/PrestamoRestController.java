@@ -4,12 +4,14 @@ import com.tedesoft.prestamosservice.delivery.rest.dto.FiltroPersonaDto;
 import com.tedesoft.prestamosservice.delivery.rest.dto.PrestamoResponseDto;
 import com.tedesoft.prestamosservice.delivery.rest.dto.PrestamoRetrasadoResponseDto;
 import com.tedesoft.prestamosservice.delivery.rest.dto.SolicitudPrestamoRequestDto;
+import com.tedesoft.prestamosservice.domain.clients.IAlmacenamientoFotos;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
 import com.tedesoft.prestamosservice.domain.exception.FotoInvalidaException;
 import com.tedesoft.prestamosservice.domain.services.IPrestamoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -100,6 +102,33 @@ public class PrestamoRestController {
 
         return ResponseEntity.ok(PrestamoResponseDto.desde(
                 prestamoService.recibirConFoto(id, leerFotografia(foto), foto.getContentType())));
+    }
+
+    /**
+     * Fotografía de la entrega (SCRUM-22, CA-3). Devuelve la imagen tal cual con su tipo (PNG o JPEG); Angular la
+     * baja con HttpClient y el token, porque un {@code <img>} no puede enviar el encabezado Authorization.
+     * {@code produces = ALL}: los errores (404, 503) siguen siendo JSON aunque el cliente pida una imagen.
+     */
+    @GetMapping(path = "/{id}/foto-entrega", produces = MediaType.ALL_VALUE)
+    public ResponseEntity<byte[]> fotoEntrega(@PathVariable Long id) {
+        return imagen(prestamoService.obtenerFotoEntrega(id));
+    }
+
+    /** Fotografía de la devolución: solo existe en un préstamo devuelto. */
+    @GetMapping(path = "/{id}/foto-devolucion", produces = MediaType.ALL_VALUE)
+    public ResponseEntity<byte[]> fotoDevolucion(@PathVariable Long id) {
+        return imagen(prestamoService.obtenerFotoDevolucion(id));
+    }
+
+    private ResponseEntity<byte[]> imagen(IAlmacenamientoFotos.Foto foto) {
+        MediaType tipo = foto.tipoMime() == null || foto.tipoMime().isBlank()
+                ? MediaType.APPLICATION_OCTET_STREAM
+                : MediaType.parseMediaType(foto.tipoMime());
+        return ResponseEntity.ok()
+                .contentType(tipo)
+                // evidencia de un préstamo: que ningún intermediario la guarde en caché
+                .cacheControl(CacheControl.noStore())
+                .body(foto.contenido());
     }
 
     /** Sin la parte {@code foto} (o sin petición multipart) Spring la entrega como null: se rechaza aquí. */

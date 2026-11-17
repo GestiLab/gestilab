@@ -7,6 +7,7 @@ import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
 import com.tedesoft.prestamosservice.domain.exception.FotoInvalidaException;
+import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.prestamosservice.domain.repositories.IPrestamoDao;
 
 import org.junit.jupiter.api.AfterEach;
@@ -299,4 +300,58 @@ class PrestamoFotosServiceTest {
 
         verifyNoInteractions(eventosPendientes);
     }
+
+    // ------------------------------------------------------------------ CA-3: pedir las fotos
+
+    @Test
+    void prestamoCerrado_tieneLasDosFotosRecuperables() {
+        Prestamo prestamo = crearPrestamo();
+        prestamo.entregar();
+        prestamo.registrarFotoEntrega("prestamos/fotos/e");
+        prestamo.recibir();
+        prestamo.registrarFotoDevolucion("prestamos/fotos/d");
+        when(prestamoDao.findById(1L)).thenReturn(Optional.of(prestamo));
+        when(almacenamientoFotos.recuperar("prestamos/fotos/e"))
+                .thenReturn(new IAlmacenamientoFotos.Foto(new byte[]{1}, "image/png"));
+        when(almacenamientoFotos.recuperar("prestamos/fotos/d"))
+                .thenReturn(new IAlmacenamientoFotos.Foto(new byte[]{2}, "image/jpeg"));
+
+        assertArrayEquals(new byte[]{1}, servicio.obtenerFotoEntrega(1L).contenido());
+        assertEquals("image/jpeg", servicio.obtenerFotoDevolucion(1L).tipoMime());
+    }
+
+    @Test
+    void fotoDeDevolucion_antesDeDevolver_noExiste() {
+        Prestamo prestamo = crearPrestamo();
+        prestamo.entregar();
+        prestamo.registrarFotoEntrega("prestamos/fotos/e");
+        when(prestamoDao.findById(1L)).thenReturn(Optional.of(prestamo));
+
+        RecursoNoEncontradoException error = assertThrows(RecursoNoEncontradoException.class,
+                () -> servicio.obtenerFotoDevolucion(1L));
+
+        assertTrue(error.getMessage().contains("devolución"));
+        verifyNoInteractions(almacenamientoFotos);
+    }
+
+    @Test
+    void foto_deUnPrestamoInexistente_lanza404() {
+        when(prestamoDao.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(RecursoNoEncontradoException.class, () -> servicio.obtenerFotoEntrega(99L));
+        verifyNoInteractions(almacenamientoFotos);
+    }
+
+    @Test
+    void foto_conClaveHuerfana_siElObjetoYaNoExisteSePropaga404() {
+        Prestamo prestamo = crearPrestamo();
+        prestamo.entregar();
+        prestamo.registrarFotoEntrega("prestamos/fotos/borrada");
+        when(prestamoDao.findById(1L)).thenReturn(Optional.of(prestamo));
+        when(almacenamientoFotos.recuperar("prestamos/fotos/borrada"))
+                .thenThrow(new RecursoNoEncontradoException("La fotografía no fue encontrada"));
+
+        assertThrows(RecursoNoEncontradoException.class, () -> servicio.obtenerFotoEntrega(1L));
+    }
+
 }

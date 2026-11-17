@@ -1,7 +1,9 @@
 
 package com.tedesoft.prestamosservice.delivery.rest;
 
+import com.tedesoft.prestamosservice.domain.clients.IAlmacenamientoFotos;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
+import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.prestamosservice.domain.services.IPrestamoService;
 
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,7 @@ import java.time.LocalDate;
 import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -409,6 +412,88 @@ class PrestamoFotosRestTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.mensaje")
                         .value("La fotografía es obligatoria"));
+
+        verifyNoInteractions(prestamoService);
+    }
+
+    // ------------------------------------------------------------------ CA-3: pedir las fotos
+
+    @Test
+    void fotoEntrega_debeResponderLaImagenConSuTipo() throws Exception {
+        byte[] contenido = crearImagen("png");
+        when(prestamoService.obtenerFotoEntrega(1L))
+                .thenReturn(new IAlmacenamientoFotos.Foto(contenido, "image/png"));
+
+        mockMvc.perform(get(RUTA + "/1/foto-entrega"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG))
+                .andExpect(content().bytes(contenido))
+                .andExpect(header().string("Cache-Control", "no-store"));
+    }
+
+    @Test
+    void fotoDevolucion_debeResponderLaImagenJpeg() throws Exception {
+        byte[] contenido = crearImagen("jpg");
+        when(prestamoService.obtenerFotoDevolucion(1L))
+                .thenReturn(new IAlmacenamientoFotos.Foto(contenido, "image/jpeg"));
+
+        mockMvc.perform(get(RUTA + "/1/foto-devolucion").accept(MediaType.ALL))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_JPEG))
+                .andExpect(content().bytes(contenido));
+    }
+
+    @Test
+    void foto_sinAccept_ni_json_tambienResponde() throws Exception {
+        // Angular manda "application/json, text/plain, */*": debe recibir la imagen igualmente
+        when(prestamoService.obtenerFotoEntrega(1L))
+                .thenReturn(new IAlmacenamientoFotos.Foto(new byte[]{1, 2}, "image/png"));
+
+        mockMvc.perform(get(RUTA + "/1/foto-entrega")
+                        .header("Accept", "application/json, text/plain, */*"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG));
+    }
+
+    @Test
+    void foto_sinTipoGuardado_respondeOctetStream() throws Exception {
+        when(prestamoService.obtenerFotoEntrega(1L))
+                .thenReturn(new IAlmacenamientoFotos.Foto(new byte[]{1, 2}, null));
+
+        mockMvc.perform(get(RUTA + "/1/foto-entrega"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM));
+    }
+
+    @Test
+    void foto_inexistente_respondeJson404AunqueSePidaUnaImagen() throws Exception {
+        when(prestamoService.obtenerFotoEntrega(1L))
+                .thenThrow(new RecursoNoEncontradoException(
+                        "El préstamo 1 aún no tiene fotografía de entrega"));
+
+        mockMvc.perform(get(RUTA + "/1/foto-entrega").accept("image/png"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.mensaje")
+                        .value("El préstamo 1 aún no tiene fotografía de entrega"));
+    }
+
+    @Test
+    void foto_conAlmacenamientoCaido_respondeJson503() throws Exception {
+        when(prestamoService.obtenerFotoDevolucion(1L))
+                .thenThrow(new DependenciaNoDisponibleException(
+                        "El almacenamiento de fotografías no está disponible"));
+
+        mockMvc.perform(get(RUTA + "/1/foto-devolucion").accept("image/*"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value(503));
+    }
+
+    @Test
+    void foto_conIdNoNumerico_responde400() throws Exception {
+        mockMvc.perform(get(RUTA + "/abc/foto-entrega"))
+                .andExpect(status().isBadRequest());
 
         verifyNoInteractions(prestamoService);
     }

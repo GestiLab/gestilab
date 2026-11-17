@@ -1,5 +1,6 @@
 package com.tedesoft.prestamosservice.domain.services;
 
+import com.tedesoft.prestamosservice.domain.clients.IAlmacenamientoFotos;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
 import com.tedesoft.prestamosservice.domain.models.PrestamoRetrasado;
@@ -71,5 +72,16 @@ public interface IPrestamoService {
             byte[] contenido,
             String tipoMime
     );
+
+    /**
+     * Fotografía tomada al entregar la unidad (SCRUM-22, CA-3).
+     *
+     * @throws com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException si el préstamo no
+     *         existe o aún no tiene esa fotografía
+     */
+    IAlmacenamientoFotos.Foto obtenerFotoEntrega(Long prestamoId);
+
+    /** Fotografía tomada al recibir la unidad; existe solo en un préstamo devuelto (SCRUM-22, CA-3). */
+    IAlmacenamientoFotos.Foto obtenerFotoDevolucion(Long prestamoId);
 
 }

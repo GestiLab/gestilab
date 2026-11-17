@@ -8,6 +8,7 @@ import com.tedesoft.prestamosservice.domain.exception.FotoInvalidaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -99,7 +100,9 @@ public class GlobalExceptionHandler {
 
     private ResponseEntity<ApiErrorResponse> construir(HttpStatus status, String mensaje,
                                                        Map<String, String> errores) {
+        // JSON fijo: si el cliente pidió una imagen (Accept: image/*), el error igual debe poder escribirse
         return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(new ApiErrorResponse(status.value(), status.getReasonPhrase(), mensaje, errores));
     }
 }
