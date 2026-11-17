@@ -2,11 +2,12 @@ package com.tedesoft.inventarioservice.domain.repositories;
 
 import com.tedesoft.inventarioservice.domain.entities.Unidad;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 
-public interface UnidadRepository extends JpaRepository<Unidad, Long> {
+public interface UnidadRepository extends JpaRepository<Unidad, Long>, JpaSpecificationExecutor<Unidad> {
 
     boolean existsByNumeroInventarioIgnoreCase(String numeroInventario);
 

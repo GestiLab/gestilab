@@ -3,12 +3,22 @@ package com.tedesoft.inventarioservice.domain.services;
 import com.tedesoft.inventarioservice.domain.entities.EstadoUnidad;
 import com.tedesoft.inventarioservice.domain.entities.TipoEquipo;
 import com.tedesoft.inventarioservice.domain.entities.Unidad;
+import com.tedesoft.inventarioservice.domain.exception.ParametroInvalidoException;
 import com.tedesoft.inventarioservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.inventarioservice.domain.exception.ReglaNegocioException;
 import com.tedesoft.inventarioservice.domain.repositories.TipoEquipoRepository;
+import com.tedesoft.inventarioservice.domain.repositories.UnidadSpecification;
 import com.tedesoft.inventarioservice.domain.repositories.UnidadRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 /**
  * Orquesta los casos de uso de las unidades. No contiene reglas de préstamo: esas viven en el
@@ -19,12 +29,63 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class UnidadService {
 
+    /** Tope del tamaño de página del catálogo: evita traer el inventario completo en una sola petición. */
+    public static final int TAMANO_MAXIMO_PAGINA = 100;
+
     private final UnidadRepository unidadRepository;
     private final TipoEquipoRepository tipoEquipoRepository;
 
     public UnidadService(UnidadRepository unidadRepository, TipoEquipoRepository tipoEquipoRepository) {
         this.unidadRepository = unidadRepository;
         this.tipoEquipoRepository = tipoEquipoRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Unidad> listar(Long tipoId, String estado, String nombre, int page, int size) {
+        if (page < 0) {
+            throw new ParametroInvalidoException("page", "La página no puede ser negativa");
+        }
+        if (size <= 0) {
+            throw new ParametroInvalidoException("size", "El tamaño de página debe ser mayor que cero");
+        }
+        if (size > TAMANO_MAXIMO_PAGINA) {
+            throw new ParametroInvalidoException("size",
+                    "El tamaño de página no puede superar " + TAMANO_MAXIMO_PAGINA);
+        }
+
+        EstadoUnidad estadoFiltro = null;
+        if (estado != null && !estado.isBlank()) {
+            if (!EstadoUnidad.esValido(estado)) {
+                throw new ParametroInvalidoException("estado",
+                        "Estado no permitido. Valores válidos: " + EstadoUnidad.permitidosComoTexto());
+            }
+            estadoFiltro = EstadoUnidad.desdeTexto(estado);
+        }
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id"));
+        Specification<Unidad> filtro =
+                UnidadSpecification.filtrar(tipoId, estadoFiltro, tiposCuyoNombreContiene(nombre));
+        // Spring Data pasa el desplazamiento (page * size) a la consulta como int: si no cabe, fallaba con 500.
+        // Una página tan lejana está fuera de rango igual que la 50 (CA-6): vacía y con el total real.
+        if (pageable.getOffset() > Integer.MAX_VALUE) {
+            return new PageImpl<>(List.of(), pageable, unidadRepository.count(filtro));
+        }
+        return unidadRepository.findAll(filtro, pageable);
+    }
+
+    /**
+     * Ids de los tipos cuyo nombre coincide con la búsqueda, o {@code null} si no se buscó por nombre. Los
+     * tipos son pocos (decenas), así que se comparan en memoria sin tildes; las unidades sí se filtran
+     * y paginan en la base de datos.
+     */
+    private List<Long> tiposCuyoNombreContiene(String nombre) {
+        if (nombre == null || nombre.isBlank()) {
+            return null;
+        }
+        return tipoEquipoRepository.findAll().stream()
+                .filter(tipo -> tipo.nombreContiene(nombre))
+                .map(TipoEquipo::getId)
+                .toList();
     }
 
     public Unidad crear(Long tipoEquipoId, String numeroInventario, EstadoUnidad estado, String observaciones) {

@@ -1,6 +1,7 @@
 package com.tedesoft.inventarioservice.delivery.rest;
 
 import com.tedesoft.inventarioservice.delivery.rest.dto.UnidadRequestDto;
+import com.tedesoft.inventarioservice.delivery.rest.dto.PaginaResponseDto;
 import com.tedesoft.inventarioservice.delivery.rest.dto.UnidadResponseDto;
 import com.tedesoft.inventarioservice.domain.entities.EstadoUnidad;
 import com.tedesoft.inventarioservice.domain.entities.Unidad;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,6 +30,16 @@ public class UnidadController {
 
     public UnidadController(UnidadService service) {
         this.service = service;
+    }
+
+    @GetMapping
+    public PaginaResponseDto<UnidadResponseDto> listar(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "tipoId", required = false) Long tipoId,
+            @RequestParam(name = "estado", required = false) String estado,
+            @RequestParam(name = "nombre", required = false) String nombre) {
+        return PaginaResponseDto.desde(service.listar(tipoId, estado, nombre, page, size), UnidadResponseDto::desde);
     }
 
     @PostMapping
