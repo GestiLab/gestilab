@@ -96,9 +96,10 @@ entorno se reemplaza por un archivo propio que no se versiona.
 
 ## Problemas conocidos y por qué
 
-- **SeaweedFS 4.05 o más nueva.** El SDK de AWS sube las fotos con codificación `aws-chunked` firmada y un
-  checksum al final. SeaweedFS 3.97 guardaba esa envoltura tal cual y la foto recuperada no era la imagen
-  (decisión D-15 de la bitácora).
+- **Fotos sin envoltura `aws-chunked`.** Por defecto el SDK de AWS sube con esa codificación (trozos firmados y un
+  checksum al final) y SeaweedFS 3.97 la guardaba tal cual: la foto recuperada no era la imagen. Hay dos
+  defensas: `prestamos-service` ya sube la foto sin esa envoltura y se usa SeaweedFS 4.05, que además la
+  entiende (decisión D-15 de la bitácora).
 - **RabbitMQ con sonda de puerto.** `rabbitmq-diagnostics` corre como root; si se adelanta al servidor, crea la
   cookie de Erlang con dueño root y RabbitMQ no arranca.
 - **El exchange aparece unos segundos después.** `prestamos-service` lo declara al abrir la conexión, en el
