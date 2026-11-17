@@ -5,8 +5,7 @@ import com.tedesoft.prestamosservice.infrastructure.storage.AlmacenamientoFotosS
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -60,7 +59,8 @@ class AlmacenamientoFotosS3MockTest {
                     new AlmacenamientoFotosS3(
                             bucket,
                             "us-east-1",
-                            endpoint
+                            endpoint,
+                            10
                     );
 
             try {
@@ -99,13 +99,7 @@ class AlmacenamientoFotosS3MockTest {
                 assertThatThrownBy(
                         () -> almacenamiento.recuperar(clave)
                 )
-                        .isInstanceOf(ResponseStatusException.class)
-                        .satisfies(error ->
-                                assertThat(
-                                        ((ResponseStatusException) error)
-                                                .getStatusCode()
-                                ).isEqualTo(HttpStatus.NOT_FOUND)
-                        );
+                        .isInstanceOf(RecursoNoEncontradoException.class);
 
                 // Limpiar el bucket temporal.
                 administrador.deleteBucket(b -> b.bucket(bucket));

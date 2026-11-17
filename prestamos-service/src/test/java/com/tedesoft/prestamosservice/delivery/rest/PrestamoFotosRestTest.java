@@ -16,8 +16,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import com.tedesoft.prestamosservice.domain.exception.FotoInvalidaException;
 import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleException;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -323,9 +321,8 @@ class PrestamoFotosRestTest {
                 any(byte[].class),
                 eq("image/jpeg")
         )).thenThrow(
-                new ResponseStatusException(
-                        HttpStatus.SERVICE_UNAVAILABLE,
-                        "No se pudo guardar la fotografía en S3"
+                new DependenciaNoDisponibleException(
+                        "El almacenamiento de fotografías no está disponible. Intenta más tarde."
                 )
         );
 
