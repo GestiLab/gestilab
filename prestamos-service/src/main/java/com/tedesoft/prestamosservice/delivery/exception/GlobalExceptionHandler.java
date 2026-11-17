@@ -8,6 +8,7 @@ import com.tedesoft.prestamosservice.domain.exception.FotoInvalidaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.ErrorResponse;
@@ -39,6 +40,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> fotoInvalida(FotoInvalidaException ex) {
         log.warn("Fotografía inválida: {}", ex.getMessage());
         return construir(HttpStatus.BAD_REQUEST, ex.getMessage(), null);
+    }
+
+    /**
+     * Un archivo mayor que el máximo del multipart se rechaza antes de llegar al servicio. Spring lo
+     * traduciría a 413; SCRUM-22 (CA-6) pide 400 con el motivo, igual que cualquier otra foto inválida.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> fotoDemasiadoGrande(MaxUploadSizeExceededException ex) {
+        log.warn("Fotografía demasiado grande: {}", ex.getMessage());
+        return construir(HttpStatus.BAD_REQUEST, "La fotografía supera el tamaño máximo de 5 MB", null);
     }
 
     @ExceptionHandler(DependenciaNoDisponibleException.class)

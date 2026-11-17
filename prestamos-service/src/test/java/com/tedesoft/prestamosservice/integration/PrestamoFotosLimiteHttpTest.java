@@ -39,7 +39,7 @@ class PrestamoFotosLimiteHttpTest {
     private IPrestamoService prestamoService;
 
     @Test
-    void archivoMayorDe5MiB_debeResponder413()
+    void archivoMayorDe5MiB_debeResponder400ConElMotivo()
             throws Exception {
 
         // Un byte más que el máximo permitido.
@@ -84,8 +84,11 @@ class PrestamoFotosLimiteHttpTest {
                     HttpResponse.BodyHandlers.ofString()
             );
 
-            assertThat(respuesta.statusCode())
-                    .isEqualTo(413);
+            // CA-6 de SCRUM-22: un archivo que supera el máximo responde 400 explicando el motivo
+            assertThat(respuesta.statusCode()).isEqualTo(400);
+            assertThat(respuesta.body())
+                    .contains("\"status\":400")
+                    .contains("La fotografía supera el tamaño máximo de 5 MB");
         }
 
         // El archivo debe rechazarse antes de llamar al servicio.
