@@ -38,6 +38,7 @@ flowchart LR
 gestilab/
 ├── inventario-service/        # Tipos, unidades, estados y reglas
 ├── prestamos-service/         # Solicitudes, entregas, devoluciones y retrasos
+├── k8s/                       # Despliegue en Kubernetes local con kind (ver k8s/README.md)
 ├── docs/
 │   ├── contrato/
 │   │   └── openapi.yaml       # Contrato de GET /unidades/{id}
