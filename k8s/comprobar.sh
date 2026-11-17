@@ -123,8 +123,16 @@ recuperar foto-devolucion
 ok "DEVUELTO; la foto de devolución vuelve idéntica"
 
 inicio "RabbitMQ tiene el exchange de eventos que declara prestamos-service"
-kc exec deployment/rabbitmq -- rabbitmqctl -q list_exchanges name 2>/dev/null | grep -qx 'gestilab.unidades.eventos' \
-  || falla "no existe el exchange gestilab.unidades.eventos"
+# Se declara al abrir la conexión, en el primer ciclo del buzón de eventos (cada 5 s): recién desplegado puede
+# tardar unos segundos en aparecer
+existe=no
+for _ in $(seq 1 15); do
+  if kc exec deployment/rabbitmq -- rabbitmqctl -q list_exchanges name 2>/dev/null | grep -qx 'gestilab.unidades.eventos'; then
+    existe=si; break
+  fi
+  sleep 2
+done
+[ "$existe" = si ] || falla "no existe el exchange gestilab.unidades.eventos tras 30 segundos"
 ok "exchange gestilab.unidades.eventos (los eventos esperan a SCRUM-21 y a la parte 2)"
 
 echo
