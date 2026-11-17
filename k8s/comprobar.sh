@@ -81,14 +81,20 @@ ok "$total unidades"
 inicio "Solicitar una unidad disponible de un tipo sin autorización previa"
 tipo="$(curl -sf "$INV/tipos-equipo" | jq -r '[.[] | select(.requiereAutorizacion == false)][0].id')"
 [ -n "$tipo" ] && [ "$tipo" != "null" ] || falla "no hay tipos sin autorización previa"
-unidad="$(curl -sf "$INV/unidades?tipoId=$tipo&estado=DISPONIBLE&size=1" | jq -r '.content[0].id')"
-[ -n "$unidad" ] && [ "$unidad" != "null" ] || falla "no hay unidades disponibles del tipo $tipo"
+candidatas="$(curl -sf "$INV/unidades?tipoId=$tipo&estado=DISPONIBLE&size=30" | jq -r '.content[].id')"
+[ -n "$candidatas" ] || falla "no hay unidades disponibles del tipo $tipo"
 persona="comprobacion-k8s-$(date +%s)"
-respuesta="$(curl -s -w '\n%{http_code}' -H 'Content-Type: application/json' \
-  -d "{\"unidadId\": $unidad, \"solicitanteId\": \"$persona\"}" "$PRE/prestamos")"
-codigo="$(tail -n1 <<<"$respuesta")"
-[ "$codigo" = "201" ] || falla "POST /prestamos respondió $codigo: $(head -n1 <<<"$respuesta")"
-prestamo="$(head -n1 <<<"$respuesta" | jq -r .id)"
+# Inventario aún no consume el evento (SCRUM-21): una unidad con un préstamo abierto de una corrida anterior
+# sigue saliendo DISPONIBLE y préstamos la rechaza con 409. Se prueba con la siguiente.
+prestamo=""
+for unidad in $candidatas; do
+  respuesta="$(curl -s -w '\n%{http_code}' -H 'Content-Type: application/json' \
+    -d "{\"unidadId\": $unidad, \"solicitanteId\": \"$persona\"}" "$PRE/prestamos")"
+  codigo="$(tail -n1 <<<"$respuesta")"
+  if [ "$codigo" = "201" ]; then prestamo="$(head -n1 <<<"$respuesta" | jq -r .id)"; break; fi
+  [ "$codigo" = "409" ] || falla "POST /prestamos respondió $codigo: $(head -n1 <<<"$respuesta")"
+done
+[ -n "$prestamo" ] || falla "ninguna de las unidades disponibles aceptó la solicitud"
 ok "préstamo $prestamo de la unidad $unidad"
 
 cambiar() { # operacion estado-esperado
