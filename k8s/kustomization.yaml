@@ -12,9 +12,29 @@ resources:
   - keycloak.yaml
   - rabbitmq.yaml
   - seaweedfs.yaml
+  - inventario-service.yaml
+  - prestamos-service.yaml
 
 # El ConfigMap keycloak-realm no se genera aquí: kustomize no lee archivos fuera de k8s/ y el realm vive en
 # keycloak/gestilab-realm.json (una sola fuente). Lo crea desplegar.sh desde ese archivo.
+
+# Configuración de cada servicio (sin secretos). Las variables son las que ya leen los application.properties.
+configMapGenerator:
+  - name: inventario-config
+    literals:
+      - DB_URL=jdbc:postgresql://postgres-inventario:5432/inventario_db
+      - JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75
+  - name: prestamos-config
+    literals:
+      - DB_URL=jdbc:postgresql://postgres-prestamos:5432/prestamos_db
+      - INVENTARIO_URL=http://inventario-service:8080/api/v1/inventario-service
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - FOTOS_S3_HABILITADO=true
+      - FOTOS_S3_BUCKET=gestilab-fotos
+      - FOTOS_S3_ENDPOINT=http://seaweedfs:8333
+      - AWS_REGION=us-east-1
+      - JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75
 
 secretGenerator:
   - name: gestilab-credenciales

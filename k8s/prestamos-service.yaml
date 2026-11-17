@@ -1,0 +1,109 @@
+# prestamos-service tal como está en main: llama a inventario por HTTP, deja el evento en su buzón y lo
+# publica en RabbitMQ (D-13), y guarda las fotos en SeaweedFS por la API de S3 (SCRUM-22). Espera a su base,
+# al corredor y al almacenamiento antes de arrancar.
+apiVersion: v1
+kind: Service
+metadata:
+  name: prestamos-service
+spec:
+  selector:
+    app: prestamos-service
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090
+    - name: gestion
+      port: 8091
+      targetPort: 8091
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prestamos-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prestamos-service
+  template:
+    metadata:
+      labels:
+        app: prestamos-service
+    spec:
+      initContainers:
+        - name: esperar-dependencias
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              for destino in postgres-prestamos:5432 rabbitmq:5672 seaweedfs:8333; do
+                until nc -z "${destino%:*}" "${destino#*:}"; do echo "esperando $destino"; sleep 2; done
+              done
+      containers:
+        - name: prestamos-service
+          image: gestilab/prestamos-service:local
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8090
+            - name: gestion
+              containerPort: 8091
+          envFrom:
+            - configMapRef:
+                name: prestamos-config
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: gestilab-credenciales
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gestilab-credenciales
+                  key: DB_PASSWORD
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: gestilab-credenciales
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gestilab-credenciales
+                  key: RABBITMQ_PASSWORD
+            # El SDK de AWS lee estas dos variables (cadena de credenciales por defecto)
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: gestilab-credenciales
+                  key: S3_ACCESS_KEY
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gestilab-credenciales
+                  key: S3_SECRET_KEY
+          startupProbe:
+            httpGet:
+              path: /salud
+              port: gestion
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /salud
+              port: gestion
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /salud
+              port: gestion
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 384Mi
+            limits:
+              memory: 768Mi
