@@ -1,0 +1,140 @@
+# Una base PostgreSQL por servicio (base de datos por servicio, como en el compose de cada uno).
+# StatefulSet con volumen persistente: los datos sobreviven a que el pod se reinicie.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-inventario
+spec:
+  selector:
+    app: postgres-inventario
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-inventario
+spec:
+  serviceName: postgres-inventario
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-inventario
+  template:
+    metadata:
+      labels:
+        app: postgres-inventario
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: inventario_db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: gestilab-credenciales
+                  key: DB_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gestilab-credenciales
+                  key: DB_PASSWORD
+            # Subcarpeta: la raíz del volumen trae lost+found y initdb la rechaza
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: datos
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: datos
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-prestamos
+spec:
+  selector:
+    app: postgres-prestamos
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-prestamos
+spec:
+  serviceName: postgres-prestamos
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-prestamos
+  template:
+    metadata:
+      labels:
+        app: postgres-prestamos
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: prestamos_db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: gestilab-credenciales
+                  key: DB_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gestilab-credenciales
+                  key: DB_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: datos
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: datos
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

@@ -1,0 +1,26 @@
+# GestiLab en Kubernetes (SCRUM-41, parte 1 de 2): infraestructura y los dos servicios tal como están en main.
+# Se aplica con ./k8s/desplegar.sh, que crea el clúster kind, construye las imágenes y ejecuta
+# `kubectl apply -k k8s/`. Ver k8s/README.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: gestilab
+
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - keycloak.yaml
+  - rabbitmq.yaml
+  - seaweedfs.yaml
+
+# El ConfigMap keycloak-realm no se genera aquí: kustomize no lee archivos fuera de k8s/ y el realm vive en
+# keycloak/gestilab-realm.json (una sola fuente). Lo crea desplegar.sh desde ese archivo.
+
+secretGenerator:
+  - name: gestilab-credenciales
+    envs:
+      - valores-de-prueba.env
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: gestilab
