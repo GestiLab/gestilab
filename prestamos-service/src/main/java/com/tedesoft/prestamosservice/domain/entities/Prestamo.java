@@ -15,6 +15,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.util.Objects;
 
+import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;
+
 /**
  * Préstamo de una unidad a una persona (RF-04).
  *
@@ -58,6 +60,17 @@ public class Prestamo {
     @Column(name = "fecha_prevista", nullable = false)
     private LocalDate fechaPrevista;
 
+    /**
+     * Clave de la fotografía tomada al entregar la unidad.
+     * La imagen se almacena en S3, no en PostgreSQL.
+     */
+    @Column(name = "foto_entrega_clave", length = 255)
+    private String fotoEntregaClave;
+
+    /** Clave de la fotografía tomada al recibir la unidad.*/
+    @Column(name = "foto_devolucion_clave", length = 255)
+    private String fotoDevolucionClave;
+
     private Prestamo(Long unidadId, Long tipoId, String solicitanteId, int duracionDias, LocalDate hoy) {
         this.unidadId = Objects.requireNonNull(unidadId, "La unidad es obligatoria");
         this.tipoId = Objects.requireNonNull(tipoId, "El tipo de equipo es obligatorio");
@@ -85,4 +98,70 @@ public class Prestamo {
                                      LocalDate hoy) {
         return new Prestamo(unidadId, tipoId, solicitanteId, duracionDias, hoy);
     }
+
+
+    public void entregar() {
+        if (estado != EstadoPrestamo.SOLICITADO) {
+            throw new ReglaNegocioException(
+                    "No se puede entregar el préstamo. Estado actual: " + estado
+            );
+        }
+        this.estado = EstadoPrestamo.ENTREGADO;
+    }
+
+    public void recibir() {
+        if (estado != EstadoPrestamo.ENTREGADO) {
+            throw new ReglaNegocioException(
+                    "No se puede recibir el préstamo. Estado actual: " + estado
+            );
+        }
+        this.estado = EstadoPrestamo.DEVUELTO;
+    }
+
+
+    public void registrarFotoEntrega(String clave) {
+        if (clave == null || clave.isBlank()) {
+            throw new IllegalArgumentException(
+                    "La clave de la fotografía de entrega es obligatoria"
+            );
+        }
+
+        if (this.estado != EstadoPrestamo.ENTREGADO) {
+            throw new IllegalStateException(
+                    "Solo se puede registrar la fotografía de un préstamo entregado"
+            );
+        }
+
+        if (this.fotoEntregaClave != null) {
+            throw new IllegalStateException(
+                    "El préstamo ya tiene fotografía de entrega"
+            );
+        }
+
+        this.fotoEntregaClave = clave;
+    }
+
+    public void registrarFotoDevolucion(String clave) {
+        if (clave == null || clave.isBlank()) {
+            throw new IllegalArgumentException(
+                    "La clave de la fotografía de devolución es obligatoria"
+            );
+        }
+
+        if (this.estado != EstadoPrestamo.DEVUELTO) {
+            throw new IllegalStateException(
+                    "Solo se puede registrar la fotografía de un préstamo devuelto"
+            );
+        }
+
+        if (this.fotoDevolucionClave != null) {
+            throw new IllegalStateException(
+                    "El préstamo ya tiene fotografía de devolución"
+            );
+        }
+
+        this.fotoDevolucionClave = clave;
+    }
+
+
 }

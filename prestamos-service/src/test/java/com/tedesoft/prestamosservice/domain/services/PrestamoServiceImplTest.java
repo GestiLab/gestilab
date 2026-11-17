@@ -2,6 +2,8 @@ package com.tedesoft.prestamosservice.domain.services;
 
 import com.tedesoft.prestamosservice.domain.models.EstadoUnidad;
 import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;
+import com.tedesoft.prestamosservice.domain.clients.IEventoUnidadPendiente;
+import org.mockito.Mockito;
 import com.tedesoft.prestamosservice.domain.models.UnidadInventario;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
@@ -51,10 +53,21 @@ class PrestamoServiceImplTest {
 
     private PrestamoServiceImpl servicio;
 
+
     @BeforeEach
     void setUp() {
-        Clock reloj = Clock.fixed(Instant.parse("2026-11-02T15:00:00Z"), BOGOTA);
-        servicio = new PrestamoServiceImpl(prestamoDao, inventarioClient, new FechaServiceImpl(reloj));
+        Clock reloj = Clock.fixed(
+                Instant.parse("2026-11-02T15:00:00Z"),
+                BOGOTA
+        );
+
+        servicio = new PrestamoServiceImpl(
+                prestamoDao,
+                inventarioClient,
+                new FechaServiceImpl(reloj),
+                Mockito.mock(IEventoUnidadPendiente.class),
+                (clave, accion) -> accion.get(),
+                null);
     }
 
     private static UnidadInventario unidad(EstadoUnidad estado, int duracionDias) {
@@ -62,7 +75,7 @@ class PrestamoServiceImplTest {
     }
 
     private void guardarDevuelveElMismoPrestamo() {
-        when(prestamoDao.save(any(Prestamo.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(prestamoDao.saveAndFlush(any(Prestamo.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
@@ -79,7 +92,7 @@ class PrestamoServiceImplTest {
         assertThat(prestamo.getUnidadId()).isEqualTo(14L);
         assertThat(prestamo.getTipoId()).isEqualTo(2L);
         assertThat(prestamo.getSolicitanteId()).isEqualTo("ana");
-        verify(prestamoDao).save(any(Prestamo.class));
+        verify(prestamoDao).saveAndFlush(any(Prestamo.class));
     }
 
     @Test
@@ -116,7 +129,7 @@ class PrestamoServiceImplTest {
         assertThatThrownBy(() -> servicio.solicitar(14L, "ana"))
                 .isInstanceOf(ReglaNegocioException.class)
                 .hasMessage("La unidad 14 no está disponible (estado: " + texto + ")");
-        verify(prestamoDao, never()).save(any());
+        verify(prestamoDao, never()).saveAndFlush(any());
     }
 
     @Test
@@ -128,7 +141,7 @@ class PrestamoServiceImplTest {
         assertThatThrownBy(() -> servicio.solicitar(14L, "luis"))
                 .isInstanceOf(ReglaNegocioException.class)
                 .hasMessage("La unidad 14 ya tiene un préstamo activo");
-        verify(prestamoDao, never()).save(any());
+        verify(prestamoDao, never()).saveAndFlush(any());
     }
 
     @Test
@@ -148,7 +161,7 @@ class PrestamoServiceImplTest {
 
         assertThatThrownBy(() -> servicio.solicitar(14L, "ana"))
                 .isInstanceOf(DependenciaNoDisponibleException.class);
-        verify(prestamoDao, never()).save(any());
+        verify(prestamoDao, never()).saveAndFlush(any());
     }
 
     @ParameterizedTest(name = "{0}")
@@ -160,7 +173,7 @@ class PrestamoServiceImplTest {
         assertThatThrownBy(() -> servicio.solicitar(14L, "ana"))
                 .isInstanceOf(DependenciaNoDisponibleException.class)
                 .hasMessage("inventario respondió con datos inválidos");
-        verify(prestamoDao, never()).save(any());
+        verify(prestamoDao, never()).saveAndFlush(any());
     }
 
     static Stream<Arguments> respuestasQueIncumplenElContrato() {
@@ -179,7 +192,7 @@ class PrestamoServiceImplTest {
 
         assertThatThrownBy(() -> servicio.solicitar(999L, "ana"))
                 .isInstanceOf(RecursoNoEncontradoException.class);
-        verify(prestamoDao, never()).save(any());
+        verify(prestamoDao, never()).saveAndFlush(any());
     }
 
     @Test
@@ -191,7 +204,7 @@ class PrestamoServiceImplTest {
         assertThatThrownBy(() -> servicio.solicitar(14L, "ana"))
                 .isInstanceOf(DependenciaNoDisponibleException.class)
                 .hasMessage("inventario no disponible");
-        verify(prestamoDao, never()).save(any());
+        verify(prestamoDao, never()).saveAndFlush(any());
     }
 
     private void personaConActivos(String solicitante, long activos) {
@@ -218,7 +231,7 @@ class PrestamoServiceImplTest {
         assertThatThrownBy(() -> servicio.solicitar(14L, "ana"))
                 .isInstanceOf(ReglaNegocioException.class)
                 .hasMessageContaining("tope de 3 unidades");
-        verify(prestamoDao, never()).save(any());
+        verify(prestamoDao, never()).saveAndFlush(any());
         verifyNoInteractions(inventarioClient);
     }
 

@@ -11,7 +11,9 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.text.Normalizer;
 import java.time.LocalDate;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -69,6 +71,26 @@ public class TipoEquipo {
     public LocalDate calcularFechaDevolucion(LocalDate fechaInicio) {
         Objects.requireNonNull(fechaInicio, "La fecha de inicio es obligatoria");
         return fechaInicio.plusDays(duracionMaximaDias);
+    }
+
+    /**
+     * Búsqueda del catálogo por nombre (RF-03, CA-4): coincidencia parcial que no distingue mayúsculas
+     * ni tildes, así "multi" encuentra "Multímetro". Se compara en Java y no con LIKE en la base de datos:
+     * {@code lower()} no quita tildes, y así {@code %} y {@code _} son texto literal (CA-9) en H2 y en
+     * PostgreSQL por igual. Una búsqueda nula o en blanco no restringe.
+     */
+    public boolean nombreContiene(String busqueda) {
+        if (busqueda == null || busqueda.isBlank()) {
+            return true;
+        }
+        return normalizar(nombre).contains(normalizar(busqueda.strip()));
+    }
+
+    /** Minúsculas y sin marcas diacríticas: "Cámara" y "CAMARA" quedan como "camara". */
+    private static String normalizar(String texto) {
+        return Normalizer.normalize(texto, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT);
     }
 
     private void aplicar(String nombre, String descripcion, int duracionMaximaDias,

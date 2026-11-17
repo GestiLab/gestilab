@@ -4,8 +4,11 @@ import com.tedesoft.inventarioservice.domain.entities.TipoEquipo;
 import com.tedesoft.inventarioservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.inventarioservice.domain.exception.ReglaNegocioException;
 import com.tedesoft.inventarioservice.domain.repositories.TipoEquipoRepository;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 /**
  * Orquesta los casos de uso de los tipos de equipo. No contiene reglas de préstamo: esas viven en
@@ -20,6 +23,11 @@ public class TipoEquipoService {
 
     public TipoEquipoService(TipoEquipoRepository repository) {
         this.repository = repository;
+    }
+
+    @Transactional(readOnly = true)
+    public List<TipoEquipo> listar() {
+        return repository.findAll(Sort.by(Sort.Direction.ASC, "id"));
     }
 
     public TipoEquipo crear(String nombre, String descripcion, int duracionMaximaDias,
