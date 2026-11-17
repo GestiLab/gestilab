@@ -20,6 +20,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 
 import java.net.URI;
 import java.util.List;
@@ -94,5 +97,59 @@ public class PrestamoRestController {
                 PrestamoResponseDto.desde(prestamo)
         );
     }
+
+
+    // Registrar entrega con fotografía
+    @PatchMapping(
+            path = "/{id}/entregar",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<PrestamoResponseDto> entregarConFoto(
+            @PathVariable Long id,
+            @RequestParam("foto") MultipartFile foto) {
+
+        Prestamo prestamo = prestamoService.entregarConFoto(
+                id,
+                leerFotografia(foto),
+                foto.getContentType()
+        );
+
+        return ResponseEntity.ok(
+                PrestamoResponseDto.desde(prestamo)
+        );
+    }
+
+    // Registrar devolución con fotografía
+    @PatchMapping(
+            path = "/{id}/recibir",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<PrestamoResponseDto> recibirConFoto(
+            @PathVariable Long id,
+            @RequestParam("foto") MultipartFile foto) {
+
+        Prestamo prestamo = prestamoService.recibirConFoto(
+                id,
+                leerFotografia(foto),
+                foto.getContentType()
+        );
+
+        return ResponseEntity.ok(
+                PrestamoResponseDto.desde(prestamo)
+        );
+    }
+
+    // Leer los bytes del archivo recibido
+    private byte[] leerFotografia(MultipartFile foto) {
+        try {
+            return foto.getBytes();
+        } catch (IOException ex) {
+            throw new UncheckedIOException(
+                    "No se pudo leer la fotografía",
+                    ex
+            );
+        }
+    }
+
 
 }

@@ -18,6 +18,7 @@ import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 
 import java.net.URI;
 import java.util.UUID;
@@ -128,4 +129,28 @@ public class AlmacenamientoFotosS3 implements IAlmacenamientoFotos {
     public void cerrar() {
         cliente.close();
     }
+
+
+    @Override
+    public void eliminar(String clave) {
+        if (clave == null || clave.isBlank()) {
+            return;
+        }
+
+        try {
+            cliente.deleteObject(
+                    DeleteObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(clave)
+                            .build()
+            );
+        } catch (SdkException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo eliminar la fotografía de S3",
+                    ex
+            );
+        }
+    }
+
 }

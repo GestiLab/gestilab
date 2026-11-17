@@ -15,6 +15,11 @@ import com.tedesoft.prestamosservice.domain.repositories.IPrestamoDao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.tedesoft.prestamosservice.domain.clients.IAlmacenamientoFotos;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.util.Comparator;
@@ -28,6 +33,7 @@ import com.tedesoft.prestamosservice.domain.clients.IEventoUnidadPendiente;
  * La duración se obtiene del servicio de inventario.
  * SCRUM-19 agrega entrega y devolución de unidades.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PrestamoServiceImpl implements IPrestamoService {
@@ -48,6 +54,15 @@ public class PrestamoServiceImpl implements IPrestamoService {
     private final IFechaService fechaService;
     private final IEventoUnidadPendiente eventosPendientes;
     private final IControlConcurrencia controlConcurrencia;
+
+    private IAlmacenamientoFotos almacenamientoFotos;
+
+    @Autowired
+    public void configurarAlmacenamientoFotos(
+            IAlmacenamientoFotos almacenamientoFotos) {
+        this.almacenamientoFotos = almacenamientoFotos;
+    }
+
     // ==========================================
     // SOLICITAR UN PRESTAMO (CODIGO EXISTENTE)
     // ==========================================
@@ -151,6 +166,88 @@ public class PrestamoServiceImpl implements IPrestamoService {
         Prestamo guardado = prestamoDao.save(prestamo);
 
         // Registrar evento pendiente para inventario.
+        eventosPendientes.guardar(
+                guardado.getUnidadId(),
+                EstadoUnidad.DISPONIBLE.name(),
+                fechaService.ahora()
+        );
+
+        return guardado;
+    }
+
+
+    @Override
+    @Transactional
+    public Prestamo entregarConFoto(
+            Long prestamoId,
+            byte[] contenido,
+            String tipoMime) {
+
+        String mimeValidado = ValidadorFotos.validar(
+                contenido, tipoMime
+        );
+
+        Prestamo prestamo = prestamoDao.buscarParaActualizar(prestamoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "Préstamo " + prestamoId + " no encontrado"
+                ));
+
+        // Comprueba que el préstamo se puede entregar.
+        prestamo.entregar();
+
+        // Subir la fotografía a S3.
+        String clave = almacenamientoFotos.guardar(
+                contenido, mimeValidado
+        );
+
+        registrarLimpiezaSiRollback(clave);
+
+        // Guardar únicamente la clave en PostgreSQL.
+        prestamo.registrarFotoEntrega(clave);
+
+        Prestamo guardado = prestamoDao.save(prestamo);
+
+        // Mantener el evento pendiente para inventario.
+        eventosPendientes.guardar(
+                guardado.getUnidadId(),
+                EstadoUnidad.PRESTADA.name(),
+                fechaService.ahora()
+        );
+
+        return guardado;
+    }
+
+    @Override
+    @Transactional
+    public Prestamo recibirConFoto(
+            Long prestamoId,
+            byte[] contenido,
+            String tipoMime) {
+
+        String mimeValidado = ValidadorFotos.validar(
+                contenido, tipoMime
+        );
+
+        Prestamo prestamo = prestamoDao.buscarParaActualizar(prestamoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "Préstamo " + prestamoId + " no encontrado"
+                ));
+
+        // Comprueba que el préstamo se puede devolver.
+        prestamo.recibir();
+
+        // Subir la fotografía a S3.
+        String clave = almacenamientoFotos.guardar(
+                contenido, mimeValidado
+        );
+
+        registrarLimpiezaSiRollback(clave);
+
+        prestamo.registrarFotoDevolucion(clave);
+
+        Prestamo guardado = prestamoDao.save(prestamo);
+
+        // Mantener el evento pendiente para inventario.
         eventosPendientes.guardar(
                 guardado.getUnidadId(),
                 EstadoUnidad.DISPONIBLE.name(),
@@ -272,4 +369,29 @@ public class PrestamoServiceImpl implements IPrestamoService {
 
         return unidad;
     }
+
+
+    private void registrarLimpiezaSiRollback(String clave) {
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+
+                    @Override
+                    public void afterCompletion(int status) {
+
+                        if (status != STATUS_COMMITTED) {
+                            try {
+                                almacenamientoFotos.eliminar(clave);
+                            } catch (RuntimeException ex) {
+                                log.error(
+                                        "No se pudo limpiar la fotografía de S3",
+                                        ex
+                                );
+                            }
+                        }
+                    }
+                }
+        );
+    }
+
 }

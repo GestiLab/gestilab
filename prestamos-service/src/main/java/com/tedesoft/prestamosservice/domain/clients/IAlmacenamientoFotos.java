@@ -9,6 +9,8 @@ public interface IAlmacenamientoFotos {
     // Recupera una fotografía mediante su clave.
     Foto recuperar(String clave);
 
+    void eliminar(String clave);
+
     // Representa la imagen recuperada.
     record Foto(byte[] contenido, String tipoMime) {
     }

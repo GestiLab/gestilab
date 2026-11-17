@@ -58,4 +58,18 @@ public interface IPrestamoService {
     Prestamo recibir(Long prestamoId);
 
 
+    /** Entrega una unidad registrando su fotografía.*/
+    Prestamo entregarConFoto(
+            Long prestamoId,
+            byte[] contenido,
+            String tipoMime
+    );
+
+    /** Recibe una unidad registrando su fotografía.*/
+    Prestamo recibirConFoto(
+            Long prestamoId,
+            byte[] contenido,
+            String tipoMime
+    );
+
 }
