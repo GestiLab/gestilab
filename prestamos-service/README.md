@@ -121,7 +121,7 @@ Devuelven la imagen tal cual, con su `Content-Type` (`image/png` o `image/jpeg`)
 
 ### Dónde se guardan las fotos (S3)
 
-La imagen va a un almacenamiento compatible con S3 y en la tabla `prestamo` solo quedan las **claves** (`foto_entrega_clave`, `foto_devolucion_clave`, texto de hasta 255 caracteres). La clave es `prestamos/fotos/<UUID>`: aleatoria, sin el id del préstamo ni el nombre del archivo. Si la transacción falla después de subir la foto, el servicio la borra de S3 para no dejarla huérfana. Las columnas las crea JPA al arrancar (`ddl-auto=update`); `docs/sql/prestamo-fotografias.sql` es el mismo cambio para aplicarlo a mano.
+La imagen va a un almacenamiento compatible con S3 y en la tabla `prestamo` solo quedan las **claves** (`foto_entrega_clave`, `foto_devolucion_clave`, texto de hasta 255 caracteres). La clave es `prestamos/fotos/<UUID>`: aleatoria, sin el id del préstamo ni el nombre del archivo. Si la transacción falla después de subir la foto, el servicio la borra de S3 para no dejarla huérfana. La foto se sube sin la codificación `aws-chunked` que el SDK de AWS usa por defecto, para que llegue intacta a cualquier almacenamiento compatible, también a los que no la decodifican. Las columnas las crea JPA al arrancar (`ddl-auto=update`); `docs/sql/prestamo-fotografias.sql` es el mismo cambio para aplicarlo a mano.
 
 | Variable | Qué es | Por defecto |
 |---|---|---|
@@ -138,7 +138,7 @@ La imagen va a un almacenamiento compatible con S3 y en la tabla `prestamo` solo
 
 | Dato | Valor |
 |---|---|
-| Exchange | `gestilab.unidades.eventos` (tipo `topic`, durable). Se declara al arrancar. |
+| Exchange | `gestilab.unidades.eventos` (tipo `topic`, durable). Se declara al abrir la primera conexión con RabbitMQ, en el primer ciclo del buzón de eventos (unos segundos después de arrancar), no al arrancar. |
 | Routing key | `unidad.estado.cambiado` |
 | Mensaje | JSON persistente, `content-type: application/json` |
 | Campo `unidadId` | Número: id de la unidad en inventario. |

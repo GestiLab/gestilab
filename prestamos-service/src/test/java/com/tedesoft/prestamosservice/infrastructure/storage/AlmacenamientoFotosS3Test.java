@@ -35,6 +35,7 @@ class AlmacenamientoFotosS3Test {
     private HttpServer servidor;
     private String endpoint;
     private final Map<String, byte[]> objetos = new ConcurrentHashMap<>();
+    private final Map<String, String> tipos = new ConcurrentHashMap<>();
     private final List<String> peticiones = new CopyOnWriteArrayList<>();
     private volatile int retardoMs = 0;
     private volatile int estadoForzado = 0;
@@ -88,7 +89,13 @@ class AlmacenamientoFotosS3Test {
         }
         switch (intercambio.getRequestMethod()) {
             case "PUT" -> {
+                // Se guarda el cuerpo tal como llega, como haría un almacenamiento que no entiende la
+                // codificación aws-chunked (SeaweedFS 3.97): si el SDK la usa, lo guardado no es la foto
                 objetos.put(ruta, cuerpoPeticion);
+                String tipo = intercambio.getRequestHeaders().getFirst("Content-Type");
+                if (tipo != null) {
+                    tipos.put(ruta, tipo);
+                }
                 intercambio.getResponseHeaders().add("ETag", "\"x\"");
                 responder(intercambio, 200, new byte[0], null);
             }
@@ -99,7 +106,7 @@ class AlmacenamientoFotosS3Test {
                             "<Error><Code>NoSuchKey</Code><Message>no existe</Message></Error>"
                                     .getBytes(StandardCharsets.UTF_8), "application/xml");
                 } else {
-                    responder(intercambio, 200, guardado, "image/png");
+                    responder(intercambio, 200, guardado, tipos.getOrDefault(ruta, "binary/octet-stream"));
                 }
             }
             case "DELETE" -> {
@@ -134,10 +141,28 @@ class AlmacenamientoFotosS3Test {
         String otra = s3.guardar(FOTO, "image/png");
 
         assertThat(clave).matches("prestamos/fotos/[0-9a-f-]{36}").isNotEqualTo(otra);
-        assertThat(objetos).containsKey("/" + BUCKET + "/" + clave);
+        // Lo que llega al almacenamiento es la foto misma, sin envoltura (aws-chunked) ni bytes de más
+        assertThat(objetos.get("/" + BUCKET + "/" + clave)).containsExactly(FOTO);
+        assertThat(tipos.get("/" + BUCKET + "/" + clave)).isEqualTo("image/png");
         IAlmacenamientoFotos.Foto foto = s3.recuperar(clave);
         assertThat(foto.tipoMime()).isEqualTo("image/png");
-        assertThat(foto.contenido()).isNotEmpty();
+        assertThat(foto.contenido()).containsExactly(FOTO);
+        s3.cerrar();
+    }
+
+    @Test
+    @DisplayName("una foto de varios cientos de KB llega y vuelve idéntica, con su tipo (JPEG)")
+    void fotoGrandeIdentica() {
+        byte[] grande = new byte[700 * 1024];
+        new java.util.Random(41).nextBytes(grande);
+        AlmacenamientoFotosS3 s3 = almacenamiento(endpoint, 5);
+
+        String clave = s3.guardar(grande, "image/jpeg");
+
+        assertThat(objetos.get("/" + BUCKET + "/" + clave)).isEqualTo(grande);
+        IAlmacenamientoFotos.Foto foto = s3.recuperar(clave);
+        assertThat(foto.tipoMime()).isEqualTo("image/jpeg");
+        assertThat(foto.contenido()).isEqualTo(grande);
         s3.cerrar();
     }
 
