@@ -17,7 +17,9 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Unidad física del inventario (p. ej. "multímetro MUL-014"). Pertenece siempre a un {@link TipoEquipo},
@@ -48,6 +50,9 @@ public class Unidad {
     @Column(name = "observaciones", length = 500)
     private String observaciones;
 
+    @Column(name = "ultimo_evento_en")
+    private Instant ultimoEventoEn;
+
     /** EAGER: la respuesta de la unidad siempre incluye las reglas de su tipo (contrato openapi.yaml). */
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "tipo_equipo_id", nullable = false)
@@ -70,6 +75,37 @@ public class Unidad {
 
     public boolean sePuedePrestar() {
         return estado.sePuedePrestar();
+    }
+
+    /** Aplica un evento de préstamo solo si es válido y no precede al último evento aplicado. */
+    public ResultadoEventoEstado aplicarEventoDeEstado(EstadoUnidad nuevoEstado, Instant fechaEvento) {
+        Objects.requireNonNull(nuevoEstado, "El estado del evento es obligatorio");
+        Objects.requireNonNull(fechaEvento, "La fecha del evento es obligatoria");
+
+        if (nuevoEstado != EstadoUnidad.PRESTADA && nuevoEstado != EstadoUnidad.DISPONIBLE) {
+            return ResultadoEventoEstado.ESTADO_NO_ADMITIDO;
+        }
+        if (estado != EstadoUnidad.PRESTADA && estado != EstadoUnidad.DISPONIBLE) {
+            return ResultadoEventoEstado.NO_APLICABLE;
+        }
+
+        if (ultimoEventoEn != null) {
+            int orden = fechaEvento.compareTo(ultimoEventoEn);
+            if (orden < 0 || (orden == 0 && nuevoEstado != estado)) {
+                return ResultadoEventoEstado.FUERA_DE_ORDEN;
+            }
+            if (orden == 0) {
+                return ResultadoEventoEstado.SIN_CAMBIO;
+            }
+        }
+
+        ultimoEventoEn = fechaEvento;
+        if (nuevoEstado == estado) {
+            return ResultadoEventoEstado.SIN_CAMBIO;
+        }
+
+        estado = nuevoEstado;
+        return ResultadoEventoEstado.APLICADO;
     }
 
     private void aplicar(TipoEquipo tipo, String numeroInventario, EstadoUnidad estado,
