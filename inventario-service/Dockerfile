@@ -6,13 +6,7 @@ WORKDIR /app
 # Copiamos primero las dependencias para aprovechar la cache
 COPY pom.xml .
 
-# Reintenta fallos transitorios al resolver dependencias; falla si persisten.
-RUN for intento in 1 2 3; do \
-        mvn -U -B -ntp dependency:go-offline && exit 0; \
-        if [ "$intento" -eq 3 ]; then exit 1; fi; \
-        echo "No se pudieron resolver dependencias; reintentando ($intento/3)..." >&2; \
-        sleep $((intento * 5)); \
-    done; exit 1
+RUN mvn -B -ntp dependency:go-offline
 
 # Copiamos el codigo fuente
 COPY src ./src
