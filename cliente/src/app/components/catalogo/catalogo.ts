@@ -1,6 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, debounceTime, distinctUntilChanged, map } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, map, skip, startWith } from 'rxjs';
 import { CatalogoService } from '../../services/catalogo.service';
 import { ETIQUETA_ESTADO } from '../../models/unidad';
 
@@ -86,7 +86,7 @@ import { ETIQUETA_ESTADO } from '../../models/unidad';
                 <tr>
                   <td>{{ unidad.tipo.nombre }}</td>
                   <td>{{ unidad.numeroInventario }}</td>
-                  <td>{{ etiquetaEstado[unidad.estado] }}</td>
+                  <td>{{ etiquetaEstado[unidad.estado] ?? unidad.estado }}</td>
                 </tr>
               }
             </tbody>
@@ -114,7 +114,8 @@ import { ETIQUETA_ESTADO } from '../../models/unidad';
 export class Catalogo implements OnInit {
 
   protected readonly catalogo = inject(CatalogoService);
-  protected readonly etiquetaEstado = ETIQUETA_ESTADO;
+  // Se tipa como parcial porque el backend puede traer un estado que el cliente aún no conoce.
+  protected readonly etiquetaEstado: Record<string, string | undefined> = ETIQUETA_ESTADO;
 
   // Cada tecla entra aquí; solo pasa el último texto tras 300 ms de silencio (CA-8).
   private readonly texto$ = new Subject<string>();
@@ -124,7 +125,10 @@ export class Catalogo implements OnInit {
       .pipe(
         map((texto) => texto.trim()),
         debounceTime(300),
+        // El filtro arranca vacío: se siembra '' para que escribir solo espacios no cuente como cambio.
+        startWith(''),
         distinctUntilChanged(),
+        skip(1),                                              // descarta la semilla
         takeUntilDestroyed(),
       )
       .subscribe((texto) => this.catalogo.buscar(texto));
