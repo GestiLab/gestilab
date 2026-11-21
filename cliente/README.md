@@ -18,6 +18,10 @@ Todos se ejecutan dentro de `cliente/`.
 | `npm test -- --watch=false` | Ejecuta las pruebas una vez |
 | `npm run build` | Compila para producción (usa `environment.ts`) |
 
+## CI
+
+El job `cliente` de `.github/workflows/ci.yml` corre en cada push y pull request, con Node 24 (npm 11): `npm ci`, `npm test -- --watch=false` y `npm run build`. Si una prueba o la compilación falla, el job termina en `failure`.
+
 ## Dirección de la API
 
 La dirección vive solo en `src/environments/`:
