@@ -110,3 +110,34 @@ jobs:
           echo "El servicio no respondio en /salud"
           docker logs app
           exit 1
+
+  # CI del cliente Angular (SCRUM-29): instala, prueba y compila en cada push y pull request.
+  # Es un job aparte: no depende de `test` ni lo modifica, asi que el check obligatorio `test` no cambia.
+  cliente:
+    name: cliente
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Obtener codigo
+        uses: actions/checkout@v4
+
+      # Node 24 trae npm 11, que es lo que piden cliente/README.md y package.json (packageManager)
+      - name: Configurar Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: cliente/package-lock.json
+
+      - name: Instalar dependencias
+        working-directory: cliente
+        run: npm ci
+
+      # Si una prueba falla, el job termina en failure
+      - name: Probar cliente
+        working-directory: cliente
+        run: npm test -- --watch=false
+
+      - name: Compilar cliente
+        working-directory: cliente
+        run: npm run build
