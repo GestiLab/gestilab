@@ -233,6 +233,75 @@ describe('Catalogo (pantalla)', () => {
     http.expectNone((r) => r.url === urlUnidades);
   });
 
+  it('CA-8: escribir solo espacios no lanza ninguna petición', async () => {
+    await abrirPantalla();
+    vi.useFakeTimers();
+
+    const caja = html().querySelector('input[type=search]') as HTMLInputElement;
+    caja.value = '   ';
+    caja.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(300);
+
+    http.expectNone((r) => r.url === urlUnidades);            // el filtro no cambió: nada que pedir
+  });
+
+  it('CA-3: "Anterior" vuelve a la página anterior', async () => {
+    await abrirPantalla();
+    await irA(1);
+    expect(html().textContent).toContain('Página 2 de 6');
+
+    boton('Anterior').click();
+    const peticion = peticionUnidades();
+    expect(peticion.request.params.get('page')).toBe('0');
+    peticion.flush(pagina(0));
+    await pintar();
+
+    expect(html().textContent).toContain('Página 1 de 6');
+    expect(boton('Anterior').disabled).toBe(true);
+  });
+
+  it('CA-7: volver a "Todos" quita el filtro de tipo', async () => {
+    await abrirPantalla();
+    const select = html().querySelector('select')!;
+
+    select.value = '2';
+    select.dispatchEvent(new Event('change'));
+    expect(peticionUnidades().request.params.get('tipoId')).toBe('2');
+    // la petición anterior se cancela al pedir otra, así que se responde la nueva
+    select.value = '';
+    select.dispatchEvent(new Event('change'));
+    const peticion = peticionUnidades();
+
+    expect(peticion.request.params.has('tipoId')).toBe(false);
+    expect(peticion.request.params.get('page')).toBe('0');
+    peticion.flush(pagina(0));
+  });
+
+  it('al volver a entrar a la pantalla los filtros guardados en el servicio se limpian', async () => {
+    await abrirPantalla();
+    const select = html().querySelector('select')!;
+    select.value = '2';
+    select.dispatchEvent(new Event('change'));
+    peticionUnidades().flush({ number: 0, totalElements: 40, content: unidades(20) });
+    await pintar();
+    fixture.destroy();                                        // el usuario sale del catálogo
+
+    iniciar();                                                // y vuelve a entrar
+    const peticion = peticionUnidades();
+
+    expect(peticion.request.params.has('tipoId')).toBe(false);
+    expect(peticion.request.params.has('estado')).toBe(false);
+    expect(peticion.request.params.has('nombre')).toBe(false);
+    peticion.flush(pagina(0));
+  });
+
+  it('un estado que el cliente no conoce se muestra tal cual y no en blanco', async () => {
+    const desconocida = { ...unidades(1)[0], estado: 'RETIRADA' as never };
+    await abrirPantalla({ number: 0, totalElements: 1, content: [desconocida] });
+
+    expect(filas()[0].textContent).toContain('RETIRADA');
+  });
+
   it('CA-10: sin resultados muestra un mensaje y los dos botones quedan deshabilitados', async () => {
     await abrirPantalla({ number: 0, totalElements: 0, content: [] });
 
