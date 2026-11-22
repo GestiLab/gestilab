@@ -22,10 +22,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
@@ -43,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -61,8 +64,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AutorizacionPrestamosTest {
 
     private static final String BASE = "/api/v1/prestamos-service/prestamos";
-
-    private static final String PERMITIDO = "permitido";
 
     /** Quién alcanza cada endpoint. */
     private enum Quien { AMBOS, SOLO_USUARIO, SOLO_AUXILIAR }
@@ -84,9 +85,9 @@ class AutorizacionPrestamosTest {
             new Endpoint(HttpMethod.PATCH, BASE + "/1/entregar", Quien.SOLO_AUXILIAR),
             new Endpoint(HttpMethod.PATCH, BASE + "/1/recibir", Quien.SOLO_AUXILIAR));
 
-    private record Fila(String operacion, String ruta, String rol, String esperado, String obtenido, int codigo) {
+    private record Fila(String operacion, String ruta, String rol, int esperado, int obtenido) {
         boolean coincide() {
-            return esperado.equals(obtenido);
+            return esperado == obtenido;
         }
     }
 
@@ -339,47 +340,79 @@ class AutorizacionPrestamosTest {
         String ana = TokensDePrueba.usuario();                    // solicitante del préstamo 1
         String luis = TokensDePrueba.valido("luis", "usuario");   // otra persona
         String auxiliar = TokensDePrueba.auxiliar();
-        Endpoint solicitar = ENDPOINTS.get(0);
-        Endpoint verUno = ENDPOINTS.get(2);
-        Endpoint entregar = ENDPOINTS.get(6);
-        Endpoint recibir = ENDPOINTS.get(7);
 
+        // Entregar y recibir aceptan la operación: así la respuesta del auxiliar es la de una petición válida
+        Prestamo prestamo = prestamo(1L, TokensDePrueba.SUJETO_USUARIO);
+        when(prestamoService.entregarConFoto(eq(1L), any(byte[].class), eq("image/png"))).thenReturn(prestamo);
+        when(prestamoService.recibirConFoto(eq(1L), any(byte[].class), eq("image/png"))).thenReturn(prestamo);
+
+        String solicitar = "POST " + BASE;
+        String verUno = "GET " + BASE + "/1";
+        String entregar = "PATCH " + BASE + "/1/entregar";
+        String recibir = "PATCH " + BASE + "/1/recibir";
+
+        // Códigos esperados: los de la tabla "Matriz de las 16 peticiones" de RQ-03
         List<Fila> filas = new ArrayList<>();
-        filas.add(fila("Solicitar una unidad", "usuario", solicitar, ana, PERMITIDO));
-        filas.add(fila("Solicitar una unidad", "auxiliar", solicitar, auxiliar, "403"));
-        filas.add(fila("Ver préstamos propios", "usuario", verUno, ana, PERMITIDO));
-        filas.add(fila("Ver préstamos propios", "auxiliar", verUno, auxiliar, PERMITIDO));
-        filas.add(fila("Ver préstamos ajenos", "usuario", verUno, luis, "403"));
-        filas.add(fila("Ver préstamos ajenos", "auxiliar", verUno, auxiliar, PERMITIDO));
-        filas.add(fila("Entregar una unidad", "usuario", entregar, ana, "403"));
-        filas.add(fila("Entregar una unidad", "auxiliar", entregar, auxiliar, PERMITIDO));
-        filas.add(fila("Registrar la devolución", "usuario", recibir, ana, "403"));
-        filas.add(fila("Registrar la devolución", "auxiliar", recibir, auxiliar, PERMITIDO));
+        filas.add(fila("Solicitar una unidad", "usuario", solicitar, solicitud(ana), 201));
+        filas.add(fila("Solicitar una unidad", "auxiliar", solicitar, solicitud(auxiliar), 403));
+        filas.add(fila("Ver préstamos propios", "usuario", verUno, consulta(BASE + "/1", ana), 200));
+        filas.add(fila("Ver préstamos propios", "auxiliar", verUno, consulta(BASE + "/1", auxiliar), 200));
+        filas.add(fila("Ver préstamos ajenos", "usuario", verUno, consulta(BASE + "/1", luis), 403));
+        filas.add(fila("Ver préstamos ajenos", "auxiliar", verUno, consulta(BASE + "/1", auxiliar), 200));
+        filas.add(fila("Entregar una unidad", "usuario", entregar, conFoto(BASE + "/1/entregar", ana), 403));
+        filas.add(fila("Entregar una unidad", "auxiliar", entregar, conFoto(BASE + "/1/entregar", auxiliar), 200));
+        filas.add(fila("Registrar la devolución", "usuario", recibir, conFoto(BASE + "/1/recibir", ana), 403));
+        filas.add(fila("Registrar la devolución", "auxiliar", recibir, conFoto(BASE + "/1/recibir", auxiliar), 200));
 
         StringBuilder md = new StringBuilder("# Matriz de autorización — prestamos-service (SCRUM-20)\n\n")
                 .append("Parte de la matriz del enunciado (pág. 8) que vive en este servicio: 5 operaciones × 2 roles = ")
                 .append(filas.size()).append(" de las 16 peticiones. Las otras 6 están en `inventario-service`.\n\n")
-                .append("\"permitido\" = pasó la seguridad; la respuesta real depende de los datos de la prueba. ")
+                .append("Esperado = código de la tabla de RQ-03; obtenido = respuesta real del servicio. ")
                 .append("\"Ver propios\" y \"ver ajenos\" usan la misma ruta con un usuario que es o no es el solicitante.\n\n")
-                .append("| Operación | Ruta | Rol | Esperado | Obtenido | Código | OK |\n|---|---|---|---|---|---|---|\n");
+                .append("| Operación | Ruta | Rol | Esperado | Obtenido | OK |\n|---|---|---|---|---|---|\n");
         for (Fila f : filas) {
             md.append("| ").append(f.operacion()).append(" | ").append(f.ruta()).append(" | ").append(f.rol())
                     .append(" | ").append(f.esperado()).append(" | ").append(f.obtenido()).append(" | ")
-                    .append(f.codigo()).append(" | ").append(f.coincide() ? "sí" : "NO").append(" |\n");
+                    .append(f.coincide() ? "sí" : "NO").append(" |\n");
         }
         escribir(Path.of("target", "informe-autorizacion-prestamos.md"), md.toString());
 
         List<String> fallos = filas.stream().filter(f -> !f.coincide())
                 .map(f -> f.operacion() + " con " + f.rol() + ": esperado " + f.esperado()
-                        + ", obtenido " + f.obtenido() + " (" + f.codigo() + ")")
+                        + ", obtenido " + f.obtenido())
                 .toList();
         assertTrue(fallos.isEmpty(), "Diferencias: " + fallos);
     }
 
-    private Fila fila(String operacion, String rol, Endpoint e, String token, String esperado) throws Exception {
-        int codigo = codigo(e, token);
-        String obtenido = codigo == 401 || codigo == 403 ? String.valueOf(codigo) : PERMITIDO;
-        return new Fila(operacion, e.etiqueta(), rol, esperado, obtenido, codigo);
+    private Fila fila(String operacion, String rol, String ruta, RequestBuilder peticion, int esperado)
+            throws Exception {
+        int obtenido = mockMvc.perform(peticion).andReturn().getResponse().getStatus();
+        return new Fila(operacion, ruta, rol, esperado, obtenido);
+    }
+
+    /** Solicitud válida de una unidad: el cuerpo que ya usa la prueba de CA-5. */
+    private static MockHttpServletRequestBuilder solicitud(String token) {
+        return MockMvcRequestBuilders.post(BASE)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"unidadId\":14,\"solicitanteId\":\"" + TokensDePrueba.SUJETO_USUARIO + "\"}");
+    }
+
+    private static MockHttpServletRequestBuilder consulta(String ruta, String token) {
+        return MockMvcRequestBuilders.get(ruta).header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+    }
+
+    /** Entrega o devolución válida: PATCH multipart con la fotografía, como la envía el cliente. */
+    private static RequestBuilder conFoto(String ruta, String token) {
+        MockMultipartFile foto = new MockMultipartFile("foto", "foto.png", "image/png", new byte[]{1, 2, 3});
+        return MockMvcRequestBuilders.multipart(ruta)
+                .file(foto)
+                .with(req -> {
+                    req.setMethod("PATCH");
+                    return req;
+                })
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .accept(MediaType.APPLICATION_JSON);
     }
 
     private static void escribir(Path destino, String contenido) throws IOException {

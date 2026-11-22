@@ -3,6 +3,7 @@ package com.tedesoft.inventarioservice.delivery.security;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +23,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
@@ -31,6 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -72,11 +75,9 @@ class AutorizacionInventarioTest {
             new Endpoint(HttpMethod.POST, BASE + "/unidades", true),
             new Endpoint(HttpMethod.PUT, BASE + "/unidades/1", true));
 
-    private static final String PERMITIDO = "permitido";
-
-    private record Fila(String operacion, String ruta, String rol, String esperado, String obtenido, int codigo) {
+    private record Fila(String operacion, String ruta, String rol, int esperado, int obtenido) {
         boolean coincide() {
-            return esperado.equals(obtenido);
+            return esperado == obtenido;
         }
     }
 
@@ -235,41 +236,79 @@ class AutorizacionInventarioTest {
     void matriz_esperadoContraObtenido() throws Exception {
         String usuario = TokensDePrueba.usuario();
         String auxiliar = TokensDePrueba.auxiliar();
-        Endpoint catalogo = ENDPOINTS.get(2);     // GET unidades
-        Endpoint altaDeTipo = ENDPOINTS.get(4);   // POST tipos-equipo (el alta de unidad es la misma restricción)
-        Endpoint editarReglas = ENDPOINTS.get(5); // PUT tipos-equipo/{id}
+        String unidades = BASE + "/unidades";
+        String tipos = BASE + "/tipos-equipo";
+        // Nombre único: la prueba no depende de los datos que ya haya en la base
+        String nombre = "Tipo de prueba SCRUM-20 " + UUID.randomUUID();
 
+        // Códigos esperados: los de la tabla "Matriz de las 16 peticiones" de RQ-03
         List<Fila> filas = new ArrayList<>();
-        filas.add(fila("Consultar el catálogo", "usuario", catalogo, usuario, PERMITIDO));
-        filas.add(fila("Consultar el catálogo", "auxiliar", catalogo, auxiliar, PERMITIDO));
-        filas.add(fila("Dar de alta un tipo o una unidad", "usuario", altaDeTipo, usuario, "403"));
-        filas.add(fila("Dar de alta un tipo o una unidad", "auxiliar", altaDeTipo, auxiliar, PERMITIDO));
-        filas.add(fila("Editar las reglas de un tipo", "usuario", editarReglas, usuario, "403"));
-        filas.add(fila("Editar las reglas de un tipo", "auxiliar", editarReglas, auxiliar, PERMITIDO));
+        filas.add(fila("Consultar el catálogo", "usuario", "GET " + unidades,
+                ejecutar(consulta(unidades, usuario)), 200));
+        filas.add(fila("Consultar el catálogo", "auxiliar", "GET " + unidades,
+                ejecutar(consulta(unidades, auxiliar)), 200));
+
+        filas.add(fila("Dar de alta un tipo o una unidad", "usuario", "POST " + tipos,
+                ejecutar(envio(HttpMethod.POST, tipos, usuario, cuerpoDeTipo(nombre))), 403));
+        MvcResult alta = ejecutar(envio(HttpMethod.POST, tipos, auxiliar, cuerpoDeTipo(nombre)));
+        filas.add(fila("Dar de alta un tipo o una unidad", "auxiliar", "POST " + tipos, alta, 201));
+
+        // La edición usa el tipo que acaba de crear el auxiliar (si el alta falló, la fila de edición lo mostrará)
+        long idTipo = 0L;
+        if (alta.getResponse().getStatus() == 201) {
+            Number id = JsonPath.read(alta.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.id");
+            idTipo = id.longValue();
+        }
+        String tipo = tipos + "/" + idTipo;
+        String cuerpoEditado = cuerpoDeTipo(nombre + " (editado)");
+        filas.add(fila("Editar las reglas de un tipo", "usuario", "PUT " + tipos + "/{id}",
+                ejecutar(envio(HttpMethod.PUT, tipo, usuario, cuerpoEditado)), 403));
+        filas.add(fila("Editar las reglas de un tipo", "auxiliar", "PUT " + tipos + "/{id}",
+                ejecutar(envio(HttpMethod.PUT, tipo, auxiliar, cuerpoEditado)), 200));
 
         StringBuilder md = new StringBuilder("# Matriz de autorización — inventario-service (SCRUM-20)\n\n")
                 .append("Parte de la matriz del enunciado (pág. 8) que vive en este servicio: 3 operaciones × 2 roles = ")
                 .append(filas.size()).append(" de las 16 peticiones. Las otras 10 están en `prestamos-service`.\n\n")
-                .append("\"permitido\" = pasó la seguridad; la respuesta real depende de los datos de la prueba.\n\n")
-                .append("| Operación | Ruta | Rol | Esperado | Obtenido | Código | OK |\n|---|---|---|---|---|---|---|\n");
+                .append("Esperado = código de la tabla de RQ-03; obtenido = respuesta real del servicio. ")
+                .append("El alta de unidad es la misma restricción que el alta de tipo.\n\n")
+                .append("| Operación | Ruta | Rol | Esperado | Obtenido | OK |\n|---|---|---|---|---|---|\n");
         for (Fila f : filas) {
             md.append("| ").append(f.operacion()).append(" | ").append(f.ruta()).append(" | ").append(f.rol())
                     .append(" | ").append(f.esperado()).append(" | ").append(f.obtenido()).append(" | ")
-                    .append(f.codigo()).append(" | ").append(f.coincide() ? "sí" : "NO").append(" |\n");
+                    .append(f.coincide() ? "sí" : "NO").append(" |\n");
         }
         escribirInforme("informe-autorizacion-inventario.md", md.toString());
 
         List<String> fallos = filas.stream().filter(f -> !f.coincide())
                 .map(f -> f.operacion() + " con " + f.rol() + ": esperado " + f.esperado()
-                        + ", obtenido " + f.obtenido() + " (" + f.codigo() + ")")
+                        + ", obtenido " + f.obtenido())
                 .toList();
         assertTrue(fallos.isEmpty(), "Diferencias: " + fallos);
     }
 
-    private Fila fila(String operacion, String rol, Endpoint e, String token, String esperado) throws Exception {
-        int codigo = codigo(e, token);
-        String obtenido = codigo == 401 || codigo == 403 ? String.valueOf(codigo) : PERMITIDO;
-        return new Fila(operacion, e.etiqueta(), rol, esperado, obtenido, codigo);
+    private MvcResult ejecutar(RequestBuilder peticion) throws Exception {
+        return mockMvc.perform(peticion).andReturn();
+    }
+
+    private static Fila fila(String operacion, String rol, String ruta, MvcResult resultado, int esperado) {
+        return new Fila(operacion, ruta, rol, esperado, resultado.getResponse().getStatus());
+    }
+
+    private static MockHttpServletRequestBuilder consulta(String ruta, String token) {
+        return MockMvcRequestBuilders.get(ruta).header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+    }
+
+    private static MockHttpServletRequestBuilder envio(HttpMethod metodo, String ruta, String token, String cuerpo) {
+        return MockMvcRequestBuilders.request(metodo, ruta)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(cuerpo);
+    }
+
+    /** Cuerpo válido de un tipo de equipo (nombre, descripción, duración y autorización). */
+    private static String cuerpoDeTipo(String nombre) {
+        return "{\"nombre\":\"" + nombre + "\",\"descripcion\":\"Creado por la prueba de la matriz (SCRUM-20)\","
+                + "\"duracionMaximaDias\":7,\"requiereAutorizacion\":false}";
     }
 
     private static void escribirInforme(String nombre, String contenido) throws IOException {
