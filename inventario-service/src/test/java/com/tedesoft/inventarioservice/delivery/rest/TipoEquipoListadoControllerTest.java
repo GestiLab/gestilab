@@ -16,8 +16,10 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.inventarioservice.delivery.security.ConSeguridadDePrueba;
 
 /** CA-12: el selector de tipos devuelve la lista completa con las reglas de cada tipo. */
+@ConSeguridadDePrueba
 @WebMvcTest(TipoEquipoController.class)
 class TipoEquipoListadoControllerTest {
 

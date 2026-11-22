@@ -17,8 +17,10 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
 
 /** SCRUM-23: capa web con el servicio simulado. */
+@ConSeguridadDePrueba
 @WebMvcTest(PrestamoRestController.class)
 @DisplayName("Integration tests (web slice) — GET /prestamos/retrasos")
 class RetrasosRestControllerTest {

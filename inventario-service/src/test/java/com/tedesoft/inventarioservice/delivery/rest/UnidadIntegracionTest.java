@@ -30,6 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.inventarioservice.delivery.security.ConSeguridadDePrueba;
 
 /**
  * Flujo completo contra H2 en memoria. Verifica sobre todo lo que los simulados no pueden: que el
@@ -39,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>Usa su propia base H2 (no la de TipoEquipoIntegracionTest) y limpia al terminar: las unidades
  * referencian tipos, así que los tipos no se pueden borrar mientras queden unidades.
  */
+@ConSeguridadDePrueba
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")

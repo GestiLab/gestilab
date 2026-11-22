@@ -30,6 +30,8 @@ Reglas del formato:
 ### Cómo elegir el código
 
 - **400:** la petición está mal formada. Ejemplo: el número de inventario llega vacío.
+- **401:** no se sabe quién llama: falta el token, o el token es inválido (alterado, vencido, sin firma o de otro emisor). Responde con la cabecera `WWW-Authenticate`.
+- **403:** se sabe quién llama, pero su rol no alcanza para esa operación (o el recurso es de otra persona). El mensaje es fijo y nunca dice si el recurso existe.
 - **404:** lo que se pide no existe. Ejemplo: no hay una unidad con id 99.
 - **409:** la petición está bien, pero una regla de negocio no la permite. Ejemplo: el número de inventario MUL-014 ya existe.
 - **502:** el servicio funciona y el otro del que depende respondió, pero rechazó la petición (credenciales, permisos o contrato). Ejemplo: inventario le responde 401 a `prestamos-service`. Reintentar no lo arregla: es un problema de integración.
@@ -40,6 +42,9 @@ Reglas del formato:
 
 | HTTP | Cuándo ocurre | Origen | `mensaje` |
 |---|---|---|---|
+| 401 | La petición no trae token, o el token es inválido: alterado, vencido, sin firma, firmado por otro emisor o con otra clave. Con cabecera `WWW-Authenticate: Bearer`. | `PuntoEntradaAutenticacion` (cadena de seguridad) | `Se requiere un token válido` |
+| 403 | El token es válido pero su rol no alcanza para la ruta (por ejemplo, `usuario` en una ruta del `auxiliar`, o `auxiliar` al solicitar un préstamo). | `ManejadorAccesoDenegado` (cadena de seguridad) | `No tienes permiso para realizar esta operación` |
+| 403 | Un `usuario` pide el préstamo de otra persona, o uno que no existe (las dos respuestas son idénticas). Solo `prestamos-service`. | `AccessDeniedException` (la lanza `PrestamoRestController`) | `No tienes permiso para realizar esta operación` |
 | 404 | No existe el recurso pedido. | `RecursoNoEncontradoException` | El texto con que se lanzó la excepción. |
 | 409 | Se viola una regla de negocio. | `ReglaNegocioException` | El texto con que se lanzó la excepción. |
 | 400 | El cuerpo no cumple las validaciones (`@Valid`). | `MethodArgumentNotValidException` | `Datos de entrada inválidos` (más `errores`). |
@@ -59,6 +64,28 @@ Cómo usarlo desde el código:
 - Ambas excepciones viven en `domain/`, que no depende de Spring Web. El handler que las traduce a HTTP vive en `delivery/`.
 
 ## Ejemplos
+
+### 401: sin token o token inválido
+Con la cabecera `WWW-Authenticate: Bearer` (o `Bearer error="invalid_token"` si traía un token). El mensaje es el mismo en todos los casos: la respuesta no dice si el token estaba alterado, vencido o era de otro emisor; el motivo queda solo en el registro del servicio.
+```json
+{
+  "status": 401,
+  "error": "Unauthorized",
+  "mensaje": "Se requiere un token válido",
+  "timestamp": "2026-11-21T10:40:29.843437"
+}
+```
+
+### 403: el rol no alcanza
+Nunca incluye datos del recurso pedido.
+```json
+{
+  "status": 403,
+  "error": "Forbidden",
+  "mensaje": "No tienes permiso para realizar esta operación",
+  "timestamp": "2026-11-21T10:40:29.843437"
+}
+```
 
 ### 404: recurso no encontrado
 ```json

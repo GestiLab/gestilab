@@ -27,11 +27,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.inventarioservice.delivery.security.ConSeguridadDePrueba;
 
 /**
  * Flujo completo contra H2 en memoria (el esquema lo crea JPA a partir de la entidad) y verifica
  * que lo inválido no se persiste.
  */
+@ConSeguridadDePrueba
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")

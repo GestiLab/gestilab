@@ -22,11 +22,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.inventarioservice.delivery.security.ConSeguridadDePrueba;
 
 /**
  * La unidad se guarda en la base (H2 en memoria), se consulta por HTTP y la respuesta se compara con el ejemplo de {@code docs/contrato/openapi.yaml}.
  * Los ids los asigna la base, así que se comparan nombres y tipos de campo, no los valores.
  */
+@ConSeguridadDePrueba
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")

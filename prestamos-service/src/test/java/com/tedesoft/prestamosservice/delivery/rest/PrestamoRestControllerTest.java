@@ -30,8 +30,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
 
 /** Capa web con el servicio simulado: no levanta inventario ni base de datos. */
+@ConSeguridadDePrueba
 @WebMvcTest(PrestamoRestController.class)
 @DisplayName("Integration tests (web slice) — PrestamoRestController con MockMvc")
 class PrestamoRestControllerTest {

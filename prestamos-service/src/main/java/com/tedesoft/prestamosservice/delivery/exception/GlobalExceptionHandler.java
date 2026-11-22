@@ -1,13 +1,18 @@
 package com.tedesoft.prestamosservice.delivery.exception;
 
+import com.tedesoft.prestamosservice.delivery.security.RegistroAccesoRechazado;
+import com.tedesoft.prestamosservice.delivery.security.RespuestaErrorSeguridad;
 import com.tedesoft.prestamosservice.domain.exception.DependenciaNoDisponibleException;
 import com.tedesoft.prestamosservice.domain.exception.DependenciaRechazadaException;
 import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;
 import com.tedesoft.prestamosservice.domain.exception.FotoInvalidaException;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.http.ResponseEntity;
@@ -84,6 +89,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> parametroInvalido(MethodArgumentTypeMismatchException ex) {
         Map<String, String> errores = Map.of(ex.getName(), "El valor no tiene el formato esperado");
         return construir(HttpStatus.BAD_REQUEST, "Parámetro de ruta inválido", errores);
+    }
+
+    /**
+     * 403 decidido dentro del controlador (un préstamo que no es de quien lo pide). Sin este handler el
+     * {@code Exception} genérico de abajo lo convertiría en un 500. Responde igual que el 403 por rol de la cadena
+     * de filtros: el mismo cuerpo, sin datos del recurso, y con su línea en el registro de rechazos.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> accesoDenegado(AccessDeniedException ex, HttpServletRequest peticion) {
+        RegistroAccesoRechazado.registrar(peticion, HttpStatus.FORBIDDEN.value(), ex.getMessage(),
+                SecurityContextHolder.getContext().getAuthentication());
+        return construir(HttpStatus.FORBIDDEN, RespuestaErrorSeguridad.MENSAJE_403, null);
     }
 
     @ExceptionHandler(Exception.class)

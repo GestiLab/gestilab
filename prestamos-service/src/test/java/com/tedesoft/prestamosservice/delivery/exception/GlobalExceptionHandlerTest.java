@@ -14,7 +14,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
 
+@ConSeguridadDePrueba
 @WebMvcTest(controllers = GlobalExceptionHandlerTest.ProbeController.class)
 @Import(GlobalExceptionHandlerTest.ProbeController.class)
 class GlobalExceptionHandlerTest {

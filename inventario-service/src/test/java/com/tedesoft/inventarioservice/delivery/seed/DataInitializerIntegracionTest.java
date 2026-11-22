@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.tedesoft.inventarioservice.delivery.security.ConSeguridadDePrueba;
 
 /**
  * La siembra contra una base H2 real: 3 tipos, 120 unidades y ningún duplicado al repetirla. Con el
@@ -28,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Las anotaciones son las mismas que las de UnidadIntegracionTest para compartir su contexto de Spring
  * (y su base H2) en lugar de levantar otro: cada prueba deja la base vacía.
  */
+@ConSeguridadDePrueba
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
