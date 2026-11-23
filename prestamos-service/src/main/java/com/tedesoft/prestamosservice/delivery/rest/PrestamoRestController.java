@@ -33,12 +33,17 @@ import java.io.UncheckedIOException;
 
 import java.net.URI;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @RestController
 // produces: sin él, un Accept que no sea JSON se descubre DESPUÉS de crear el préstamo y el cliente recibe 406
 @RequestMapping(path = "/api/${api.version}/prestamos-service/prestamos", produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
 public class PrestamoRestController {
+
+    /** El largo de la columna {@code solicitante_id}. */
+    private static final int LARGO_MAXIMO_SOLICITANTE = 100;
+    private static final Pattern CARACTER_DE_CONTROL = Pattern.compile("\\p{Cntrl}");
 
     private final IPrestamoService prestamoService;
 
@@ -71,12 +76,20 @@ public class PrestamoRestController {
     }
 
     /**
-     * Quién solicita es el {@code sub} del token. Un token válido sin un {@code sub} utilizable no identifica a
-     * nadie: se responde 403 en lugar de guardar un préstamo sin dueño.
+     * Quién solicita es el {@code sub} del token, y se usa tal cual: no se recorta. Se rechaza con 403 (en lugar de
+     * guardar un préstamo sin dueño o con otro dueño) el que no identifica a nadie de forma estable:
+     * <ul>
+     *   <li>en blanco o ausente;</li>
+     *   <li>con espacios en los extremos: el dominio lo guardaría recortado y " ana" acabaría siendo "ana";</li>
+     *   <li>de más de 100 caracteres: no cabe en {@code solicitante_id} y el fallo al guardar parecería un 409;</li>
+     *   <li>con caracteres de control, igual que el filtro {@code persona}.</li>
+     * </ul>
+     * Con Keycloak el {@code sub} es un UUID de 36 caracteres, así que ninguno de estos casos debería darse.
      */
     private static String solicitanteDelToken(Authentication autenticacion) {
         String sub = autenticacion.getName();
-        if (sub == null || sub.isBlank()) {
+        if (sub == null || sub.isBlank() || !sub.equals(sub.strip())
+                || sub.length() > LARGO_MAXIMO_SOLICITANTE || CARACTER_DE_CONTROL.matcher(sub).find()) {
             throw new AccessDeniedException("el token no trae un sub utilizable");
         }
         return sub;
@@ -123,9 +136,11 @@ public class PrestamoRestController {
         if (Roles.esAuxiliar(autenticacion)) {
             return prestamoService.obtenerPorId(id);
         }
+        // Antes de consultar: un sub no utilizable recibe el mismo 403 sin tocar la base
+        String propio = solicitanteDelToken(autenticacion);
         try {
             Prestamo prestamo = prestamoService.obtenerPorId(id);
-            if (prestamo.getSolicitanteId().equals(autenticacion.getName())) {
+            if (prestamo.getSolicitanteId().equals(propio)) {
                 return prestamo;
             }
         } catch (RecursoNoEncontradoException noExiste) {

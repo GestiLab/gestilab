@@ -41,8 +41,10 @@ import com.tedesoft.prestamosservice.delivery.security.TokensDePrueba;
 class PrestamoRestControllerTest {
 
     private static final String RUTA = "/api/v1/prestamos-service/prestamos";
+    // Sin solicitanteId: el solicitante sale del token (SCRUM-24, CA-2). El caso de un solicitanteId de más en el
+    // cuerpo lo prueba solicitar_tomaElSolicitanteDelToken.
     private static final String CUERPO = """
-            {"unidadId": 14, "solicitanteId": "ana"}
+            {"unidadId": 14}
             """;
 
     @Autowired
@@ -103,6 +105,32 @@ class PrestamoRestControllerTest {
                 .andExpect(status().isForbidden());
 
         verifyNoInteractions(prestamoService);
+    }
+
+    @ParameterizedTest(name = "sub con {0} → 403 sin llamar al servicio")
+    @MethodSource("subsNoUtilizables")
+    @DisplayName("CA-2: un sub que no cabe en solicitante_id o que el dominio cambiaría al guardarlo → 403")
+    void solicitar_subNoUtilizable_debeRetornar403SinLlamarAlServicio(String caso, String sub) throws Exception {
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(CUERPO)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.valido(sub, "usuario")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+
+        verifyNoInteractions(prestamoService);
+    }
+
+    /**
+     * Antes los validaba el campo solicitanteId del cuerpo. Ahora el dueño es el sub: si no cupiera en la columna de
+     * 100 caracteres, el fallo al guardar se vería como un 409 falso; si trajera espacios en los extremos, el dominio
+     * lo guardaría recortado y la misma persona no podría ver luego su propio préstamo.
+     */
+    static Stream<Arguments> subsNoUtilizables() {
+        return Stream.of(
+                Arguments.of("101 caracteres", "a".repeat(101)),
+                Arguments.of("carácter nulo", "an\u0000a"),
+                Arguments.of("salto de línea", "ana\nluis"),
+                Arguments.of("espacio al inicio", " ana"),
+                Arguments.of("espacio Unicode al final", "ana "));
     }
 
     @Test

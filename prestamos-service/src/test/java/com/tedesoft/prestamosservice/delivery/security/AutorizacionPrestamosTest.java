@@ -297,6 +297,16 @@ class AutorizacionPrestamosTest {
     }
 
     @Test
+    @DisplayName("SCRUM-24: un sub con espacios en los extremos no es el dueño recortado → 403 sin consultar")
+    void usuario_subConEspacios_noVeElPrestamoDelSubRecortado() throws Exception {
+        // El préstamo 1 es de "ana"; " ana" es otro sub, aunque el dominio lo recortaría al guardar
+        mockMvc.perform(peticion(HttpMethod.GET, BASE + "/1", TokensDePrueba.valido(" ana", "usuario")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(prestamoService);
+    }
+
+    @Test
     @DisplayName("CA-6: el auxiliar sí ve cualquier préstamo, y un inexistente le da 404")
     void auxiliar_veCualquierPrestamo_yInexistente404() throws Exception {
         mockMvc.perform(peticion(HttpMethod.GET, BASE + "/1", TokensDePrueba.auxiliar()))
