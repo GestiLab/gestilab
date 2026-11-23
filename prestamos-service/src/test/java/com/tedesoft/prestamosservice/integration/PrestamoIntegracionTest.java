@@ -36,6 +36,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
+import com.tedesoft.prestamosservice.delivery.security.TokensDePrueba;
+import org.springframework.http.HttpHeaders;
 
 /** Controlador, servicio y JPA reales sobre H2; solo inventario se simula y el reloj se fija. */
 @ConSeguridadDePrueba
@@ -80,7 +82,7 @@ class PrestamoIntegracionTest {
                 .thenReturn(new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, 2L, 7, false));
 
         MvcResult creado = mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unidadId\": 14, \"solicitanteId\": \"ana\"}"))
+                        .content("{\"unidadId\": 14}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.fechaDevolucionPrevista").value("2026-11-09"))
                 .andReturn();
@@ -102,7 +104,7 @@ class PrestamoIntegracionTest {
                 .thenReturn(new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, 2L, 7, false));
 
         MvcResult creado = mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unidadId\": 14, \"solicitanteId\": \"ana\"}"))
+                        .content("{\"unidadId\": 14}"))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -123,11 +125,12 @@ class PrestamoIntegracionTest {
                 .thenReturn(new UnidadInventario(14L, "MUL-014", EstadoUnidad.DISPONIBLE, 2L, 7, false));
 
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unidadId\": 14, \"solicitanteId\": \"ana\"}"))
+                        .content("{\"unidadId\": 14}"))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unidadId\": 14, \"solicitanteId\": \"luis\"}"))
+                        .content("{\"unidadId\": 14}")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.valido("luis", "usuario")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.mensaje").value("La unidad 14 ya tiene un préstamo activo"));
 
@@ -141,7 +144,7 @@ class PrestamoIntegracionTest {
                 .thenReturn(new UnidadInventario(14L, "MUL-014", EstadoUnidad.PRESTADA, 2L, 7, false));
 
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unidadId\": 14, \"solicitanteId\": \"ana\"}"))
+                        .content("{\"unidadId\": 14}"))
                 .andExpect(status().isConflict());
 
         assertThat(prestamoDao.count()).isZero();
@@ -152,7 +155,8 @@ class PrestamoIntegracionTest {
                 .thenReturn(new UnidadInventario(unidadId, "MUL-" + unidadId, EstadoUnidad.DISPONIBLE, 2L, 7, false));
 
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unidadId\": " + unidadId + ", \"solicitanteId\": \"" + solicitante + "\"}"))
+                        .content("{\"unidadId\": " + unidadId + "}")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.valido(solicitante, "usuario")))
                 .andExpect(esperado);
     }
 

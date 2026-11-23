@@ -12,6 +12,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -31,6 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
+import com.tedesoft.prestamosservice.delivery.security.TokensDePrueba;
 
 /** Capa web con el servicio simulado: no levanta inventario ni base de datos. */
 @ConSeguridadDePrueba
@@ -67,6 +69,40 @@ class PrestamoRestControllerTest {
                 .andExpect(jsonPath("$.estado").value("SOLICITADO"))
                 .andExpect(jsonPath("$.duracionAplicadaDias").value(7))
                 .andExpect(jsonPath("$.fechaDevolucionPrevista").value("2026-11-09"));
+    }
+
+    @Test
+    @DisplayName("CA-2: el solicitante sale del token (sub \"ana\"); si el cuerpo trae otro, se ignora")
+    void solicitar_tomaElSolicitanteDelToken() throws Exception {
+        when(prestamoService.solicitar(14L, "ana")).thenReturn(prestamoGuardado());
+
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"unidadId\": 14, \"solicitanteId\": \"luis\"}"))
+                .andExpect(status().isCreated());
+
+        verify(prestamoService).solicitar(14L, "ana");
+    }
+
+    @Test
+    @DisplayName("CA-2: el cuerpo ya no necesita solicitanteId")
+    void solicitar_sinSolicitanteEnElCuerpo_debeRetornar201() throws Exception {
+        when(prestamoService.solicitar(14L, "ana")).thenReturn(prestamoGuardado());
+
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content("{\"unidadId\": 14}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.solicitanteId").value("ana"));
+
+        verify(prestamoService).solicitar(14L, "ana");
+    }
+
+    @Test
+    @DisplayName("CA-2: un token sin un sub utilizable no identifica a nadie → 403 y no llama al servicio")
+    void solicitar_tokenSinSubUtilizable_debeRetornar403() throws Exception {
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(CUERPO)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.valido(" ", "usuario")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(prestamoService);
     }
 
     @Test
@@ -113,10 +149,9 @@ class PrestamoRestControllerTest {
     @DisplayName("POST — datos inválidos → 400 con errores por campo y sin llamar al servicio")
     void solicitar_datosInvalidos_debeRetornar400() throws Exception {
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unidadId\": null, \"solicitanteId\": \" \"}"))
+                        .content("{\"unidadId\": null}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errores.unidadId").value("La unidad es obligatoria"))
-                .andExpect(jsonPath("$.errores.solicitanteId").value("El solicitante es obligatorio"));
+                .andExpect(jsonPath("$.errores.unidadId").value("La unidad es obligatoria"));
 
         verifyNoInteractions(prestamoService);
     }
@@ -140,23 +175,17 @@ class PrestamoRestControllerTest {
                 Arguments.of("unidadId decimal no se trunca", "{\"unidadId\": 1.5, \"solicitanteId\": \"ana\"}"),
                 Arguments.of("unidadId decimal 14.9 no presta la 14", "{\"unidadId\": 14.9, \"solicitanteId\": \"ana\"}"),
                 Arguments.of("unidadId como texto", "{\"unidadId\": \"14\", \"solicitanteId\": \"ana\"}"),
-                Arguments.of("basura después del JSON", "{\"unidadId\": 14, \"solicitanteId\": \"ana\"} xxx"),
-                Arguments.of("solicitanteId de 101 caracteres",
-                        "{\"unidadId\": 14, \"solicitanteId\": \"" + "a".repeat(101) + "\"}"),
-                Arguments.of("solicitanteId solo con espacio Unicode (U+2003)",
-                        "{\"unidadId\": 14, \"solicitanteId\": \"\\u2003\"}"),
-                Arguments.of("solicitanteId con carácter nulo",
-                        "{\"unidadId\": 14, \"solicitanteId\": \"ana\\u0000\"}"));
+                Arguments.of("basura después del JSON", "{\"unidadId\": 14, \"solicitanteId\": \"ana\"} xxx"));
     }
 
     @Test
-    @DisplayName("POST — solicitante de 100 caracteres con acentos y espacios alrededor → 201 y se recorta")
-    void solicitar_solicitanteEnElLimite_debeAceptarseYRecortarse() throws Exception {
+    @DisplayName("CA-2: un sub de 100 caracteres con acentos llega tal cual al servicio → 201")
+    void solicitar_subEnElLimite_seUsaTalCual() throws Exception {
         String nombre = "á".repeat(100);
         when(prestamoService.solicitar(14L, nombre)).thenReturn(prestamoGuardado());
 
-        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unidadId\": 14, \"solicitanteId\": \"  " + nombre + "  \"}"))
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(CUERPO)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.valido(nombre, "usuario")))
                 .andExpect(status().isCreated());
 
         verify(prestamoService).solicitar(14L, nombre);

@@ -43,14 +43,28 @@ public class PrestamoRestController {
     private final IPrestamoService prestamoService;
 
     @PostMapping
-    public ResponseEntity<PrestamoResponseDto> solicitar(@Valid @RequestBody SolicitudPrestamoRequestDto request) {
+    public ResponseEntity<PrestamoResponseDto> solicitar(@Valid @RequestBody SolicitudPrestamoRequestDto request,
+                                                        Authentication autenticacion) {
+        // Quién solicita es el sub del token (SCRUM-24, CA-2): el cuerpo no lo trae y, si lo trae, se ignora.
         // Unidad no disponible -> 409, inexistente -> 404, inventario caído -> 503: GlobalExceptionHandler
-        Prestamo creado = prestamoService.solicitar(request.unidadId(), request.solicitanteId());
+        Prestamo creado = prestamoService.solicitar(request.unidadId(), solicitanteDelToken(autenticacion));
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
                 .buildAndExpand(creado.getId())
                 .toUri();
         return ResponseEntity.created(location).body(PrestamoResponseDto.desde(creado));
+    }
+
+    /**
+     * Quién solicita es el {@code sub} del token. Un token válido sin un {@code sub} utilizable no identifica a
+     * nadie: se responde 403 en lugar de guardar un préstamo sin dueño.
+     */
+    private static String solicitanteDelToken(Authentication autenticacion) {
+        String sub = autenticacion.getName();
+        if (sub == null || sub.isBlank()) {
+            throw new AccessDeniedException("el token no trae un sub utilizable");
+        }
+        return sub;
     }
 
     /**
