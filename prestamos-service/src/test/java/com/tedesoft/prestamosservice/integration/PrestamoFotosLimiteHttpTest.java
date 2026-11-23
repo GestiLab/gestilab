@@ -1,12 +1,15 @@
 
 package com.tedesoft.prestamosservice.integration;
 
+import com.tedesoft.prestamosservice.delivery.security.DecodificadorDePruebaConfig;
+import com.tedesoft.prestamosservice.delivery.security.TokensDePrueba;
 import com.tedesoft.prestamosservice.domain.services.IPrestamoService;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -30,6 +33,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
         }
 )
 @ActiveProfiles("test")
+// SCRUM-20: la seguridad sigue activa; la petición lleva el token firmado de un auxiliar
+@Import(DecodificadorDePruebaConfig.class)
 class PrestamoFotosLimiteHttpTest {
 
     @LocalServerPort
@@ -65,6 +70,7 @@ class PrestamoFotosLimiteHttpTest {
                         "multipart/form-data; boundary=" + boundary
                 )
                 .header("Accept", "application/json")
+                .header("Authorization", "Bearer " + TokensDePrueba.auxiliar())
                 .method(
                         "PATCH",
                         HttpRequest.BodyPublishers.ofByteArrays(

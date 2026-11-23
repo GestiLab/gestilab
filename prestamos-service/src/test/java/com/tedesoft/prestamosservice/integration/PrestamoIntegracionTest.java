@@ -35,8 +35,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
 
 /** Controlador, servicio y JPA reales sobre H2; solo inventario se simula y el reloj se fija. */
+@ConSeguridadDePrueba
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")

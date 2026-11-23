@@ -26,8 +26,10 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.inventarioservice.delivery.security.ConSeguridadDePrueba;
 
 /** Capa web del catálogo con el servicio simulado: parámetros, forma de la página y formato del 400. */
+@ConSeguridadDePrueba
 @WebMvcTest(UnidadController.class)
 class UnidadControllerCatalogoTest {
 

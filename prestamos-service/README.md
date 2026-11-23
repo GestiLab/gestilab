@@ -82,7 +82,7 @@ Hoy el servicio no valida quién pregunta. Con la seguridad (SCRUM-20), ver los 
 curl localhost:8090/api/v1/prestamos-service/prestamos/retrasos
 ```
 
-Es solo para el auxiliar. Hoy el servicio no valida el rol: la restricción llega con la seguridad (SCRUM-20, CA-13). Responde `200` con la lista, del más atrasado al menos atrasado, o con `[]` si no hay retrasos:
+Es solo para el auxiliar: con un token de `usuario` responde `403` (sin datos de los préstamos) y sin token, `401`. Responde `200` con la lista, del más atrasado al menos atrasado, o con `[]` si no hay retrasos:
 
 ```json
 [
@@ -131,6 +131,35 @@ La imagen va a un almacenamiento compatible con S3 y en la tabla `prestamo` solo
 | `FOTOS_S3_ENDPOINT` | Solo para un S3 compatible que no es AWS (MinIO, S3Mock...). Con él se usa acceso por ruta. | vacío |
 | `FOTOS_S3_TIMEOUT_SEGUNDOS` | Tope de cada llamada al almacenamiento, con sus reintentos. Si no responde en ese tiempo, `503`. | `10` |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Credenciales: las lee la cadena por defecto del SDK de AWS (variables de entorno, perfil o rol). **Nunca** van en el repositorio. | |
+
+## Seguridad (SCRUM-20)
+
+El servicio valida el token firmado por Keycloak y lee el rol de `realm_access.roles`. Sin token o con uno inválido responde `401`; con un token válido del rol equivocado, `403`.
+
+| Operación | `usuario` | `auxiliar` |
+|---|---|---|
+| `POST /prestamos` (solicitar una unidad) | sí | no (`403`) |
+| `GET /prestamos` (listar) | sí | sí |
+| `GET /prestamos/{id}` | solo los suyos | cualquiera |
+| `GET /prestamos/retrasos`, `PATCH /prestamos/{id}/entregar`, `PATCH /prestamos/{id}/recibir`, `GET /prestamos/{id}/foto-entrega` y `foto-devolucion` | no (`403`) | sí |
+
+Un usuario que pide el préstamo de otra persona, o uno que no existe, recibe el mismo `403`: no puede averiguar qué números existen. El auxiliar recibe `404` si no existe. Quién es el solicitante sale hoy del cuerpo de la solicitud; pasará a salir del `sub` del token con SCRUM-24, que también reenviará el token a inventario. **Hasta entonces la solicitud real recibe `502` de inventario** (que ya exige token) y el usuario solo verá un préstamo si su `sub` coincide con el `solicitanteId` guardado.
+
+| Variable | Qué es | Por defecto |
+|---|---|---|
+| `KEYCLOAK_ISSUER_URI` | El `iss` que debe traer el token. | `http://localhost:8180/realms/gestilab` |
+| `KEYCLOAK_JWK_SET_URI` | De dónde se descargan las claves públicas para comprobar la firma. | `<issuer>/protocol/openid-connect/certs` |
+
+Las claves se piden con el primer token, no al arrancar: el servicio levanta aunque Keycloak no esté. Si Keycloak no responde en 3 s, el token se rechaza con `401` y el registro anota "servicio de claves no disponible". `/salud` (puerto de gestión) no pide token.
+
+Cada `401` y `403` deja una línea en el registro `gestilab.seguridad` con fecha, sujeto, método, ruta, rol y motivo, y nunca el token. Los mensajes de error son fijos (ver `docs/guia-errores.md`).
+
+**Cómo declarar el rol de un endpoint nuevo** (obligatorio desde la primera versión del endpoint):
+1. Abre `SeguridadConfig` (`delivery/security`) y agrega una línea en `authorizeHttpRequests`, antes de `anyRequest()`.
+2. Usa `antMatcher(HttpMethod.X, BASE + "/ruta")` con `hasRole(...)` o `hasAnyRole(...)`; la primera regla que coincide gana.
+3. Un endpoint sin línea queda denegado: responde `403` con token y `401` sin él. Su propia prueba lo descubre.
+4. La regla se aplica antes de validar el cuerpo, así que quien no tiene el rol recibe `403` y no `400`.
+5. Agrega la prueba con el rol equivocado que espera `403` en `AutorizacionPrestamosTest`.
 
 ## Evento `UnidadCambioDeEstado`
 

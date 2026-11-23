@@ -30,7 +30,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
 
+@ConSeguridadDePrueba
 @WebMvcTest(PrestamoRestController.class)
 class PrestamoFotosRestTest {
 

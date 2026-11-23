@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.inventarioservice.delivery.security.ConSeguridadDePrueba;
 
 /**
  * CA-1 a CA-6, CA-9 y CA-10 contra la base H2 con el mensaje simulado, sin broker real (CA-8): el cuerpo del
@@ -34,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>Las anotaciones son las mismas que las de las otras pruebas de integración de unidades para compartir su
  * contexto de Spring y su base H2; cada prueba empieza y termina con la base limpia.
  */
+@ConSeguridadDePrueba
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")

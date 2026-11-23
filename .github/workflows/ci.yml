@@ -44,6 +44,20 @@ jobs:
       - name: Probar prestamos-service
         run: mvn -B -ntp -f prestamos-service/pom.xml clean verify
 
+      # SCRUM-20, CA-10: el informe de esperado frente a obtenido de la matriz de autorizacion lo escribe la
+      # prueba en target/ de cada servicio. Se guarda como artefacto de la ejecucion (si fallo una prueba,
+      # tambien) para que no se pierda con `clean`. No cambia el resultado de los pasos anteriores.
+      - name: Guardar el informe de la matriz de autorizacion
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informe-matriz-autorizacion
+          path: |
+            inventario-service/target/informe-autorizacion-inventario.md
+            prestamos-service/target/informe-autorizacion-prestamos.md
+          if-no-files-found: warn
+          retention-days: 30
+
   docker-build:
     name: docker-build (${{ matrix.service }})
     needs: test

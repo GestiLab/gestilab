@@ -29,8 +29,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
 
 /** SCRUM-23 de punta a punta: HTTP → servicio → H2, con el reloj fijo en el 20 de noviembre de 2026. */
+@ConSeguridadDePrueba
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")

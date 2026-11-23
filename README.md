@@ -70,7 +70,7 @@ Imágenes de referencia para Docker y CI:
 - Ejecución: `eclipse-temurin:21-jre-alpine`
 - Base de datos: `postgres:16-alpine`
 
-Acciones previstas para GitHub Actions: `actions/checkout@v4`, `actions/setup-java@v4`, `actions/setup-node@v4` (job `cliente`) y `docker/build-push-action@v6`. La publicación de imágenes se realizará en GitHub Container Registry (GHCR).
+Acciones previstas para GitHub Actions: `actions/checkout@v4`, `actions/setup-java@v4`, `actions/setup-node@v4` (job `cliente`), `actions/upload-artifact@v4` (informe de la matriz de autorización, SCRUM-20) y `docker/build-push-action@v6`. La publicación de imágenes se realizará en GitHub Container Registry (GHCR).
 
 ## Puertos
 

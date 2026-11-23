@@ -1,14 +1,19 @@
 package com.tedesoft.inventarioservice.delivery.exception;
 
+import com.tedesoft.inventarioservice.delivery.security.RegistroAccesoRechazado;
+import com.tedesoft.inventarioservice.delivery.security.RespuestaErrorSeguridad;
 import com.tedesoft.inventarioservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.inventarioservice.domain.exception.ParametroInvalidoException;
 import com.tedesoft.inventarioservice.domain.exception.ReglaNegocioException;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -62,6 +67,18 @@ public class GlobalExceptionHandler {
                 ? "Parámetros de consulta inválidos"
                 : "Parámetro de ruta inválido";
         return construir(HttpStatus.BAD_REQUEST, mensaje, errores);
+    }
+
+    /**
+     * 403 decidido dentro de un controlador (por ejemplo, un recurso que pertenece a otra persona). Sin este
+     * handler el {@code Exception} genérico de abajo lo convertiría en un 500. Responde igual que el 403 por rol
+     * de la cadena de filtros: el mismo cuerpo, sin datos del recurso, y con su línea en el registro de rechazos.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> accesoDenegado(AccessDeniedException ex, HttpServletRequest peticion) {
+        RegistroAccesoRechazado.registrar(peticion, HttpStatus.FORBIDDEN.value(), ex.getMessage(),
+                SecurityContextHolder.getContext().getAuthentication());
+        return construir(HttpStatus.FORBIDDEN, RespuestaErrorSeguridad.MENSAJE_403, null);
     }
 
     // Red de seguridad ante la restricción única de la BD (dos peticiones simultáneas con el mismo nombre)

@@ -24,6 +24,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.inventarioservice.delivery.security.ConSeguridadDePrueba;
 
 /**
  * {@code GET /unidades/{id}} devuelve en una sola respuesta el estado de la unidad y las reglas de su
@@ -32,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>Cubre los criterios CA-1 a CA-5 de SCRUM-11.
  */
+@ConSeguridadDePrueba
 @WebMvcTest(UnidadController.class)
 class UnidadConsultaContratoTest {
 

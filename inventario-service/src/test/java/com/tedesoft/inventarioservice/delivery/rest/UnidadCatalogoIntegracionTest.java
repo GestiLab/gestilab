@@ -28,12 +28,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.inventarioservice.delivery.security.ConSeguridadDePrueba;
 
 /**
  * El catálogo completo contra H2: 120 unidades (40 por tipo) y las consultas reales con filtros, orden,
  * escape de comodines y errores. Usa las mismas anotaciones que UnidadIntegracionTest para compartir su
  * contexto de Spring y su base H2; cada prueba empieza y termina con la base limpia.
  */
+@ConSeguridadDePrueba
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")

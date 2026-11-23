@@ -38,8 +38,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.tedesoft.inventarioservice.delivery.security.ConSeguridadDePrueba;
 
 /** Capa web con el servicio simulado: rutas, códigos HTTP y formato de error de docs/guia-errores.md. */
+@ConSeguridadDePrueba
 @WebMvcTest(UnidadController.class)
 class UnidadControllerTest {
 

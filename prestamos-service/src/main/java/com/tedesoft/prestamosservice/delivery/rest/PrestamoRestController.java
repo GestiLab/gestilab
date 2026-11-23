@@ -4,16 +4,20 @@ import com.tedesoft.prestamosservice.delivery.rest.dto.FiltroPersonaDto;
 import com.tedesoft.prestamosservice.delivery.rest.dto.PrestamoResponseDto;
 import com.tedesoft.prestamosservice.delivery.rest.dto.PrestamoRetrasadoResponseDto;
 import com.tedesoft.prestamosservice.delivery.rest.dto.SolicitudPrestamoRequestDto;
+import com.tedesoft.prestamosservice.delivery.security.Roles;
 import com.tedesoft.prestamosservice.domain.clients.IAlmacenamientoFotos;
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
 import com.tedesoft.prestamosservice.domain.entities.Prestamo;
 import com.tedesoft.prestamosservice.domain.exception.FotoInvalidaException;
+import com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException;
 import com.tedesoft.prestamosservice.domain.services.IPrestamoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -63,7 +67,7 @@ public class PrestamoRestController {
                 .toList());
     }
 
-    /** Solo del auxiliar (RF-08). La restricción por rol llega con la historia de seguridad (SCRUM-20, CA-13). */
+    /** Solo del auxiliar (RF-08): la regla vive en {@code SeguridadConfig}; el usuario recibe 403 (SCRUM-20, CA-13). */
     @GetMapping("/retrasos")
     public ResponseEntity<List<PrestamoRetrasadoResponseDto>> listarRetrasos() {
         return ResponseEntity.ok(prestamoService.listarRetrasados().stream()
@@ -72,8 +76,28 @@ public class PrestamoRestController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<PrestamoResponseDto> obtener(@PathVariable Long id) {
-        return ResponseEntity.ok(PrestamoResponseDto.desde(prestamoService.obtenerPorId(id)));
+    public ResponseEntity<PrestamoResponseDto> obtener(@PathVariable Long id, Authentication autenticacion) {
+        return ResponseEntity.ok(PrestamoResponseDto.desde(prestamoVisiblePara(id, autenticacion)));
+    }
+
+    /**
+     * El auxiliar consulta cualquier préstamo (y recibe 404 si no existe). El usuario solo los suyos: si el
+     * préstamo es de otra persona <b>o no existe</b> recibe el mismo 403, para que no pueda averiguar qué
+     * números de préstamo existen (SCRUM-20, CA-6).
+     */
+    private Prestamo prestamoVisiblePara(Long id, Authentication autenticacion) {
+        if (Roles.esAuxiliar(autenticacion)) {
+            return prestamoService.obtenerPorId(id);
+        }
+        try {
+            Prestamo prestamo = prestamoService.obtenerPorId(id);
+            if (prestamo.getSolicitanteId().equals(autenticacion.getName())) {
+                return prestamo;
+            }
+        } catch (RecursoNoEncontradoException noExiste) {
+            // se responde igual que un préstamo ajeno
+        }
+        throw new AccessDeniedException("préstamo ajeno o inexistente");
     }
 
 

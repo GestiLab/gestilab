@@ -24,7 +24,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
 
+@ConSeguridadDePrueba
 @WebMvcTest(PrestamoRestController.class)
 @DisplayName("SCRUM-19/SCRUM-22: Pruebas HTTP de entrega y devolución (con fotografía)")
 class PrestamoEntregaDevolucionRestTest {
