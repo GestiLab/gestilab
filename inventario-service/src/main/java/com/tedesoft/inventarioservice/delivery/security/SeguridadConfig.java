@@ -117,7 +117,8 @@ public class SeguridadConfig {
                 .restOperations(new RestTemplate(fabrica))
                 .build();
         decodificador.setJwtValidator(validadores(emisor));
-        return decodificador;
+        // Si Keycloak no entrega las claves, el token se rechaza con 401 (ver DecodificadorJwtTolerante)
+        return new DecodificadorJwtTolerante(decodificador);
     }
 
     /** Vigencia ({@code exp}, {@code nbf}) y emisor ({@code iss}). Las pruebas arman su decodificador con esto mismo. */

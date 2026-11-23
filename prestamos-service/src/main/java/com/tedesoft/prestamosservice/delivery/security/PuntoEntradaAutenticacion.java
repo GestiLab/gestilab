@@ -39,7 +39,8 @@ public class PuntoEntradaAutenticacion implements AuthenticationEntryPoint {
         if (!cabecera.regionMatches(true, 0, "Bearer ", 0, 7)) {
             return "se esperaba un token Bearer";
         }
-        if (excepcion instanceof AuthenticationServiceException) {
+        if (excepcion instanceof AuthenticationServiceException
+                || excepcion.getCause() instanceof ClavesNoDisponiblesException) {
             return "no se pudo validar el token (servicio de claves no disponible)";
         }
         return "token inválido, vencido o de otro emisor";
