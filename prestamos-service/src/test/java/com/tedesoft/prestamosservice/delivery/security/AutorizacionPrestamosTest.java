@@ -265,7 +265,7 @@ class AutorizacionPrestamosTest {
         mockMvc.perform(MockMvcRequestBuilders.post(BASE)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.usuario())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unidadId\":14,\"solicitanteId\":\"" + TokensDePrueba.SUJETO_USUARIO + "\"}"))
+                        .content("{\"unidadId\":14}"))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(peticion(HttpMethod.GET, BASE + "/1", TokensDePrueba.usuario()))
@@ -397,7 +397,7 @@ class AutorizacionPrestamosTest {
         return MockMvcRequestBuilders.post(BASE)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"unidadId\":14,\"solicitanteId\":\"" + TokensDePrueba.SUJETO_USUARIO + "\"}");
+                .content("{\"unidadId\":14}");
     }
 
     private static MockHttpServletRequestBuilder consulta(String ruta, String token) {

@@ -124,7 +124,7 @@ class PrestamoRestControllerTest {
                 .thenThrow(new RecursoNoEncontradoException("Unidad 999 no encontrada"));
 
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unidadId\": 999, \"solicitanteId\": \"ana\"}"))
+                        .content("{\"unidadId\": 999}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").value("Not Found"))
@@ -170,12 +170,12 @@ class PrestamoRestControllerTest {
 
     static Stream<Arguments> cuerposInvalidos() {
         return Stream.of(
-                Arguments.of("unidadId cero", "{\"unidadId\": 0, \"solicitanteId\": \"ana\"}"),
-                Arguments.of("unidadId negativo", "{\"unidadId\": -1, \"solicitanteId\": \"ana\"}"),
-                Arguments.of("unidadId decimal no se trunca", "{\"unidadId\": 1.5, \"solicitanteId\": \"ana\"}"),
-                Arguments.of("unidadId decimal 14.9 no presta la 14", "{\"unidadId\": 14.9, \"solicitanteId\": \"ana\"}"),
-                Arguments.of("unidadId como texto", "{\"unidadId\": \"14\", \"solicitanteId\": \"ana\"}"),
-                Arguments.of("basura después del JSON", "{\"unidadId\": 14, \"solicitanteId\": \"ana\"} xxx"));
+                Arguments.of("unidadId cero", "{\"unidadId\": 0}"),
+                Arguments.of("unidadId negativo", "{\"unidadId\": -1}"),
+                Arguments.of("unidadId decimal no se trunca", "{\"unidadId\": 1.5}"),
+                Arguments.of("unidadId decimal 14.9 no presta la 14", "{\"unidadId\": 14.9}"),
+                Arguments.of("unidadId como texto", "{\"unidadId\": \"14\"}"),
+                Arguments.of("basura después del JSON", "{\"unidadId\": 14} xxx"));
     }
 
     @Test
