@@ -43,7 +43,8 @@ public class PrestamoRestController {
 
     /** El largo de la columna {@code solicitante_id}. */
     private static final int LARGO_MAXIMO_SOLICITANTE = 100;
-    private static final Pattern CARACTER_DE_CONTROL = Pattern.compile("\\p{Cntrl}");
+    /** Categoría Unicode Cc: los controles ASCII y también los C1 (U+0080 a U+009F), que {@code \p{Cntrl}} no ve. */
+    private static final Pattern CARACTER_DE_CONTROL = Pattern.compile("\\p{Cc}");
 
     private final IPrestamoService prestamoService;
 

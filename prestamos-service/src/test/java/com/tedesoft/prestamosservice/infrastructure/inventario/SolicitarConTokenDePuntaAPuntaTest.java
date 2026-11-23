@@ -1,5 +1,8 @@
 package com.tedesoft.prestamosservice.infrastructure.inventario;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
 import com.tedesoft.prestamosservice.delivery.security.TokensDePrueba;
 import com.tedesoft.prestamosservice.domain.repositories.IPrestamoDao;
@@ -8,6 +11,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,7 +38,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * (CA-3) y que el préstamo queda a nombre del {@code sub} (CA-2). No usa servicios externos (CA-9).
  */
 @ConSeguridadDePrueba
-@SpringBootTest
+// Sube el registro del cliente HTTP del JDK, que escribe las cabeceras de cada petición: el token no debe salir
+@SpringBootTest(properties = "logging.level.sun.net.www=DEBUG")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @DisplayName("SCRUM-24 de punta a punta: solicitar reenvía a inventario el mismo token")
@@ -69,6 +74,24 @@ class SolicitarConTokenDePuntaAPuntaTest {
         INVENTARIO.close();
     }
 
+    private ListAppender<ILoggingEvent> registro;
+
+    @BeforeEach
+    void escucharElRegistro() {
+        registro = new ListAppender<>();
+        registro.start();
+        raiz().addAppender(registro);
+    }
+
+    @AfterEach
+    void dejarDeEscuchar() {
+        raiz().detachAppender(registro);
+    }
+
+    private static Logger raiz() {
+        return (Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+    }
+
     @BeforeEach
     @AfterEach
     void limpiarBase() {
@@ -80,6 +103,7 @@ class SolicitarConTokenDePuntaAPuntaTest {
     @DisplayName("CA-2 y CA-3: el usuario solicita; inventario recibe su token y el préstamo queda a nombre de su sub")
     void solicitar_reenviaElMismoTokenAInventario_yGuardaElSub() throws Exception {
         String token = TokensDePrueba.valido("ana", "usuario");
+        int antes = INVENTARIO.peticiones();
 
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"unidadId\": " + InventarioStub.ID_MULTIMETRO + "}")
@@ -88,8 +112,55 @@ class SolicitarConTokenDePuntaAPuntaTest {
                 .andExpect(jsonPath("$.unidadId").value(InventarioStub.ID_MULTIMETRO))
                 .andExpect(jsonPath("$.solicitanteId").value("ana"));
 
+        assertThat(INVENTARIO.peticiones()).isEqualTo(antes + 1);
         assertThat(INVENTARIO.ultimaAutorizacion()).isEqualTo("Bearer " + token);
         assertThat(prestamoDao.count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("el token no aparece en ningún registro, ni con el cliente HTTP del JDK en DEBUG")
+    void elTokenNoApareceEnElRegistro() throws Exception {
+        String token = TokensDePrueba.valido("ana", "usuario");
+        // La firma es lo que no puede filtrarse: la cabecera y los claims son públicos
+        String firma = token.substring(token.lastIndexOf('.') + 1);
+
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"unidadId\": " + InventarioStub.ID_MULTIMETRO + "}")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isCreated());
+
+        assertThat(INVENTARIO.ultimaAutorizacion()).isEqualTo("Bearer " + token);
+        assertThat(registro.list).noneMatch(linea -> linea.getFormattedMessage().contains(firma));
+    }
+
+    @Test
+    @DisplayName("inventario rechaza el token reenviado (401) → 502 con el mensaje común y no se crea el préstamo")
+    void inventarioRechazaElToken_502SinPrestamo() throws Exception {
+        String token = TokensDePrueba.valido("ana", "usuario");
+
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"unidadId\": " + InventarioStub.ID_401 + "}")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.mensaje").value(InventarioHttpClient.MENSAJE_RECHAZO))
+                .andExpect(jsonPath("$.trace").doesNotExist());
+
+        assertThat(INVENTARIO.ultimaAutorizacion()).isEqualTo("Bearer " + token);
+        assertThat(prestamoDao.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("un sub con espacios en los extremos no ve los préstamos del sub recortado")
+    void subConEspacios_noVeLosDelSubRecortado() throws Exception {
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"unidadId\": " + InventarioStub.ID_MULTIMETRO + "}")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.valido("ana", "usuario")))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get(RUTA).header(HttpHeaders.AUTHORIZATION,
+                        "Bearer " + TokensDePrueba.valido(" ana", "usuario")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$[0]").doesNotExist());
     }
 
     @Test
