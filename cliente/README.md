@@ -35,6 +35,7 @@ Para apuntar a otro servidor, cambia `apiUrl` en esos archivos; no hay que tocar
 
 ```
 src/app/
+  auth/         inicio de sesión con Keycloak: servicio de sesión, interceptor y guardas
   components/   una carpeta por pantalla (plantilla y estilos dentro del .ts)
   models/       forma de los datos del contrato
   services/     estado compartido con señales y llamadas a la API
