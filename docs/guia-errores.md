@@ -44,7 +44,7 @@ Reglas del formato:
 |---|---|---|---|
 | 401 | La petición no trae token, o el token es inválido: alterado, vencido, sin firma, firmado por otro emisor o con otra clave. Con cabecera `WWW-Authenticate: Bearer`. | `PuntoEntradaAutenticacion` (cadena de seguridad) | `Se requiere un token válido` |
 | 403 | El token es válido pero su rol no alcanza para la ruta (por ejemplo, `usuario` en una ruta del `auxiliar`, o `auxiliar` al solicitar un préstamo). | `ManejadorAccesoDenegado` (cadena de seguridad) | `No tienes permiso para realizar esta operación` |
-| 403 | Un `usuario` pide el préstamo de otra persona, o uno que no existe (las dos respuestas son idénticas). Solo `prestamos-service`. | `AccessDeniedException` (la lanza `PrestamoRestController`) | `No tienes permiso para realizar esta operación` |
+| 403 | Un `usuario` pide el préstamo de otra persona o uno que no existe, o lista con `?persona=` de otra persona (exista o no: las respuestas son idénticas y no se consulta la base). También, cuando el `sub` del token no sirve para identificar al dueño: falta, está en blanco, tiene espacios en los extremos, caracteres de control o más de 100 caracteres. Solo `prestamos-service`. | `AccessDeniedException` (la lanza `PrestamoRestController`) | `No tienes permiso para realizar esta operación` |
 | 404 | No existe el recurso pedido. | `RecursoNoEncontradoException` | El texto con que se lanzó la excepción. |
 | 409 | Se viola una regla de negocio. | `ReglaNegocioException` | El texto con que se lanzó la excepción. |
 | 400 | El cuerpo no cumple las validaciones (`@Valid`). | `MethodArgumentNotValidException` | `Datos de entrada inválidos` (más `errores`). |

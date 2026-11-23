@@ -42,7 +42,7 @@ public class Prestamo {
     @Column(name = "tipo_id", nullable = false)
     private Long tipoId;
 
-    /** Identificador de la persona (el {@code sub} del token cuando llegue la seguridad). */
+    /** Identificador de la persona: el {@code sub} del token de quien solicitó (SCRUM-24). */
     @Column(name = "solicitante_id", nullable = false, length = 100)
     private String solicitanteId;
 
