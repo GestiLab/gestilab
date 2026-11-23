@@ -32,6 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
+import com.tedesoft.prestamosservice.delivery.security.RespuestaErrorSeguridad;
 import com.tedesoft.prestamosservice.delivery.security.TokensDePrueba;
 
 /** Capa web con el servicio simulado: no levanta inventario ni base de datos. */
@@ -114,23 +115,40 @@ class PrestamoRestControllerTest {
         mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(CUERPO)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.valido(sub, "usuario")))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403));
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.mensaje").value(RespuestaErrorSeguridad.MENSAJE_403));
 
         verifyNoInteractions(prestamoService);
+    }
+
+    @Test
+    @DisplayName("CA-2: el sub real de Keycloak (un UUID de 36 caracteres) llega tal cual al servicio → 201")
+    void solicitar_subUuidDeKeycloak_seUsaTalCual() throws Exception {
+        String uuid = "3d0d1b8e-f5eb-4358-853c-cc801fe63b57";
+        when(prestamoService.solicitar(14L, uuid)).thenReturn(prestamoGuardado());
+
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(CUERPO)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.valido(uuid, "usuario")))
+                .andExpect(status().isCreated());
+
+        verify(prestamoService).solicitar(14L, uuid);
     }
 
     /**
      * Antes los validaba el campo solicitanteId del cuerpo. Ahora el dueño es el sub: si no cupiera en la columna de
      * 100 caracteres, el fallo al guardar se vería como un 409 falso; si trajera espacios en los extremos, el dominio
-     * lo guardaría recortado y la misma persona no podría ver luego su propio préstamo.
+     * lo guardaría recortado y la misma persona no podría ver luego su propio préstamo. Lo usan también las pruebas
+     * del listado.
      */
     static Stream<Arguments> subsNoUtilizables() {
         return Stream.of(
+                Arguments.of("el claim ausente", null),
                 Arguments.of("101 caracteres", "a".repeat(101)),
+                Arguments.of("control C1 (NEL)", "ana" + (char) 0x85),
                 Arguments.of("carácter nulo", "an\u0000a"),
                 Arguments.of("salto de línea", "ana\nluis"),
                 Arguments.of("espacio al inicio", " ana"),
-                Arguments.of("espacio Unicode al final", "ana "));
+                Arguments.of("espacio Unicode al final", "ana\u2003"));
     }
 
     @Test

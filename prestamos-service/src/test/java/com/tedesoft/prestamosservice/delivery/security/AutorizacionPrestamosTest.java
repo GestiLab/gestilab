@@ -296,11 +296,12 @@ class AutorizacionPrestamosTest {
         assertEquals(ajenoSinHora, inexistenteSinHora, "ajeno e inexistente deben ser indistinguibles");
     }
 
-    @Test
-    @DisplayName("SCRUM-24: un sub con espacios en los extremos no es el dueño recortado → 403 sin consultar")
-    void usuario_subConEspacios_noVeElPrestamoDelSubRecortado() throws Exception {
+    @ParameterizedTest(name = "sub con {0} → 403 sin consultar")
+    @MethodSource("com.tedesoft.prestamosservice.delivery.rest.PrestamoRestControllerTest#subsNoUtilizables")
+    @DisplayName("SCRUM-24: con un sub no utilizable el usuario no consulta ningún préstamo, ni el de su sub recortado")
+    void usuario_subNoUtilizable_noConsultaElPrestamo(String caso, String sub) throws Exception {
         // El préstamo 1 es de "ana"; " ana" es otro sub, aunque el dominio lo recortaría al guardar
-        mockMvc.perform(peticion(HttpMethod.GET, BASE + "/1", TokensDePrueba.valido(" ana", "usuario")))
+        mockMvc.perform(peticion(HttpMethod.GET, BASE + "/1", TokensDePrueba.valido(sub, "usuario")))
                 .andExpect(status().isForbidden());
 
         verifyNoInteractions(prestamoService);
