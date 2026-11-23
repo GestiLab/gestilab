@@ -1,18 +1,24 @@
 package com.tedesoft.prestamosservice.delivery.rest;
 
+import com.tedesoft.prestamosservice.delivery.security.RespuestaErrorSeguridad;
+import com.tedesoft.prestamosservice.delivery.security.TokensDePrueba;
 import com.tedesoft.prestamosservice.domain.models.PrestamoRetrasado;
 import com.tedesoft.prestamosservice.domain.services.IPrestamoService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -50,6 +56,24 @@ class RetrasosRestControllerTest {
                 .andExpect(jsonPath("$[0].diasRetraso").value(3))
                 .andExpect(jsonPath("$[1].diasRetraso").value(10));
         verify(prestamoService).listarRetrasados();
+    }
+
+    @Test
+    @DisplayName("CA-7: con un token de usuario → 403 con el formato común, sin datos de los préstamos y sin consultar el servicio")
+    void listar_conTokenDeUsuario_debeRetornar403SinDatos() throws Exception {
+        // Si la regla de rol fallara, esta lista saldría en la respuesta: así la prueba detecta una fuga de datos.
+        when(prestamoService.listarRetrasados()).thenReturn(List.of(
+                new PrestamoRetrasado(1L, 14L, "ana", LocalDate.of(2026, 11, 17), 3)));
+
+        String cuerpo = mockMvc.perform(get(RUTA).header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.usuario()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.mensaje").value(RespuestaErrorSeguridad.MENSAJE_403))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        assertFalse(cuerpo.contains("solicitanteId") || cuerpo.contains("diasRetraso") || cuerpo.contains("ana"),
+                "no debe filtrar datos de los préstamos");
+        verifyNoInteractions(prestamoService);
     }
 
     @Test
