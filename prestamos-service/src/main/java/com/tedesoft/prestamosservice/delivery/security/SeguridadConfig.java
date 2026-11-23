@@ -37,8 +37,8 @@ import static org.springframework.security.web.util.matcher.AntPathRequestMatche
  *
  * <p>Esta cadena decide por <b>rol</b>. Lo que depende de <b>quién</b> es la persona (ver solo sus préstamos) lo
  * decide {@code PrestamoRestController}, porque necesita el préstamo; allí un usuario que pide algo ajeno recibe
- * el mismo 403. <b>Un endpoint nuevo declara su rol aquí desde el principio</b>; mientras no lo haga, solo lo
- * alcanza quien tenga alguno de los dos roles.
+ * el mismo 403. <b>Un endpoint nuevo declara su rol aquí desde el principio</b>; mientras no lo haga, se
+ * deniega (403) para todos.
  */
 @Configuration
 @EnableWebSecurity
@@ -82,7 +82,9 @@ public class SeguridadConfig {
                                 antMatcher(HttpMethod.GET, prestamos),
                                 antMatcher(HttpMethod.GET, prestamos + "/*"))
                         .hasAnyRole(Roles.USUARIO, Roles.AUXILIAR)
-                        .anyRequest().hasAnyRole(Roles.USUARIO, Roles.AUXILIAR))
+                        // Lo que no tiene regla arriba se deniega: una ruta o un método sin declarar no queda abierto a
+                        // ningún rol (un usuario autenticado recibe 403; sin token, 401).
+                        .anyRequest().denyAll())
                 .exceptionHandling(errores -> errores
                         .authenticationEntryPoint(puntoEntrada)
                         .accessDeniedHandler(accesoDenegado))

@@ -37,8 +37,8 @@ import static org.springframework.security.web.util.matcher.AntPathRequestMatche
  *
  * <p>Los roles se aplican por ruta y método en este único lugar, antes de llegar al controlador. Así un
  * {@code usuario} recibe 403 aunque su petición traiga un cuerpo inválido: nunca ve un 400 que le describa el
- * recurso. <b>Un endpoint nuevo declara su rol aquí desde el principio</b>; mientras no lo haga, solo lo alcanza
- * quien tenga alguno de los dos roles.
+ * recurso. <b>Un endpoint nuevo declara su rol aquí desde el principio</b>; mientras no lo haga, se
+ * deniega (403) para todos.
  */
 @Configuration
 @EnableWebSecurity
@@ -76,7 +76,9 @@ public class SeguridadConfig {
                                 antMatcher(HttpMethod.POST, BASE + "/unidades"),
                                 antMatcher(HttpMethod.PUT, BASE + "/unidades/*"))
                         .hasRole(Roles.AUXILIAR)
-                        .anyRequest().hasAnyRole(Roles.USUARIO, Roles.AUXILIAR))
+                        // Lo que no tiene regla arriba se deniega: una ruta o un método sin declarar no queda abierto a
+                        // ningún rol (un usuario autenticado recibe 403; sin token, 401).
+                        .anyRequest().denyAll())
                 .exceptionHandling(errores -> errores
                         .authenticationEntryPoint(puntoEntrada)
                         .accessDeniedHandler(accesoDenegado))

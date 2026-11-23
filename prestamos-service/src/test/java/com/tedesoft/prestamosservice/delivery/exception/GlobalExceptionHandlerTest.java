@@ -15,10 +15,11 @@ import org.springframework.web.bind.annotation.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
+import com.tedesoft.prestamosservice.delivery.security.RutasDePruebaConfig;
 
 @ConSeguridadDePrueba
 @WebMvcTest(controllers = GlobalExceptionHandlerTest.ProbeController.class)
-@Import(GlobalExceptionHandlerTest.ProbeController.class)
+@Import({GlobalExceptionHandlerTest.ProbeController.class, RutasDePruebaConfig.class})
 class GlobalExceptionHandlerTest {
 
     @Autowired MockMvc mockMvc;
