@@ -31,16 +31,18 @@ Ruta base: `/api/v1/prestamos-service/prestamos`.
 
 ```bash
 curl -X POST localhost:8090/api/v1/prestamos-service/prestamos \
+  -H "Authorization: Bearer $TOKEN_USUARIO" \
   -H 'Content-Type: application/json' \
-  -d '{"unidadId": 14, "solicitanteId": "ana"}'
+  -d '{"unidadId": 14}'
 ```
 
 | Campo | Reglas |
 |---|---|
 | `unidadId` | Obligatorio, mayor que 0. Es el id de la unidad en `inventario-service`. |
-| `solicitanteId` | Obligatorio, hasta 100 caracteres, sin caracteres de control. Se recortan los espacios. Es **provisional**: con la seguridad (SCRUM-20) saldrá del `sub` del token y este campo desaparecerá. |
 
-Responde `201` con el encabezado `Location` y el préstamo:
+**Quién solicita sale del `sub` del token** (solo el rol `usuario` puede solicitar). El cuerpo no lo trae: si llega un `solicitanteId`, se ignora, y un token sin un `sub` utilizable responde `403`. Para consultar a inventario, el servicio **reenvía el token de quien solicita**, así que esa consulta también pasa la validación de seguridad.
+
+Responde `201` con el encabezado `Location` y el préstamo (`solicitanteId` es el `sub` del token; en Keycloak es un UUID y en los ejemplos, "ana"):
 
 ```json
 {
@@ -64,17 +66,25 @@ Responde `200` con el mismo cuerpo, o `404` si no existe.
 ### `GET /prestamos`: listar préstamos
 
 ```bash
-curl 'localhost:8090/api/v1/prestamos-service/prestamos?persona=ana&estado=SOLICITADO'
+curl -H "Authorization: Bearer $TOKEN_AUXILIAR" \
+  'localhost:8090/api/v1/prestamos-service/prestamos?persona=ana&estado=SOLICITADO'
 ```
 
 | Parámetro | Reglas |
 |---|---|
-| `persona` | Opcional. Solo los préstamos de esa persona. Se recortan los espacios y después debe tener entre 1 y 100 caracteres, sin caracteres de control. |
+| `persona` | Opcional. Solo los préstamos de esa persona (el `usuario` solo puede pedir la suya: ver abajo). Se recortan los espacios y después debe tener entre 1 y 100 caracteres, sin caracteres de control. |
 | `estado` | Opcional. `SOLICITADO`, `ENTREGADO` o `DEVUELTO`, en mayúsculas. |
 
-Los dos filtros se combinan; sin filtros trae todos. Responde `200` con una lista del mismo cuerpo que al consultar un préstamo, del más reciente al más antiguo, o con `[]` si nada coincide. Un parámetro inválido responde `400` con el formato común y el detalle en `errores`.
+Los dos filtros se combinan; sin filtros, el auxiliar recibe todos y el usuario, los suyos. Responde `200` con una lista del mismo cuerpo que al consultar un préstamo, del más reciente al más antiguo, o con `[]` si nada coincide. Un parámetro inválido responde `400` con el formato común y el detalle en `errores`.
 
-Hoy el servicio no valida quién pregunta. Con la seguridad (SCRUM-20), ver los préstamos de otra persona quedará reservado al auxiliar y los propios saldrán del token (SCRUM-24).
+**Qué ve cada rol** (SCRUM-24):
+
+| Quién pregunta | Sin `persona` | Con `persona` |
+|---|---|---|
+| `usuario` | solo los suyos (la persona sale de su token) | la suya: los suyos; la de otra persona: `403`, igual exista o no y tenga o no préstamos |
+| `auxiliar` | los de todas las personas | los de esa persona |
+
+`estado` filtra en los dos casos. El `403` se decide antes de consultar la base y usa el cuerpo común, sin datos de los préstamos.
 
 ### `GET /prestamos/retrasos`: listar los préstamos retrasados
 
@@ -139,11 +149,11 @@ El servicio valida el token firmado por Keycloak y lee el rol de `realm_access.r
 | Operación | `usuario` | `auxiliar` |
 |---|---|---|
 | `POST /prestamos` (solicitar una unidad) | sí | no (`403`) |
-| `GET /prestamos` (listar) | sí | sí |
+| `GET /prestamos` (listar) | solo los suyos | todos o los de una persona |
 | `GET /prestamos/{id}` | solo los suyos | cualquiera |
 | `GET /prestamos/retrasos`, `PATCH /prestamos/{id}/entregar`, `PATCH /prestamos/{id}/recibir`, `GET /prestamos/{id}/foto-entrega` y `foto-devolucion` | no (`403`) | sí |
 
-Un usuario que pide el préstamo de otra persona, o uno que no existe, recibe el mismo `403`: no puede averiguar qué números existen. El auxiliar recibe `404` si no existe. Quién es el solicitante sale hoy del cuerpo de la solicitud; pasará a salir del `sub` del token con SCRUM-24, que también reenviará el token a inventario. **Hasta entonces la solicitud real recibe `502` de inventario** (que ya exige token) y el usuario solo verá un préstamo si su `sub` coincide con el `solicitanteId` guardado.
+Un usuario que pide el préstamo de otra persona, o uno que no existe, recibe el mismo `403`: no puede averiguar qué números existen. El auxiliar recibe `404` si no existe. Quién es el solicitante sale del `sub` del token (SCRUM-24) y la consulta a inventario viaja con el token de quien solicita, así que la solicitud ya no recibe `502` por eso. Los préstamos guardados antes de SCRUM-24 con un solicitante de texto libre (por ejemplo "ana") no coinciden con ningún `sub` real: eran datos de prueba y no se migran.
 
 | Variable | Qué es | Por defecto |
 |---|---|---|
