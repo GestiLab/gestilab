@@ -287,11 +287,13 @@ class AutorizacionPrestamosTest {
                 .andExpect(status().isForbidden())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
 
-        assertFalse(ajeno.contains("ana") || ajeno.contains("14"), "no debe filtrar datos del préstamo");
-        assertEquals(
-                ajeno.replaceAll("\"timestamp\":\"[^\"]*\"", ""),
-                inexistente.replaceAll("\"timestamp\":\"[^\"]*\"", ""),
-                "ajeno e inexistente deben ser indistinguibles");
+        // El cuerpo trae la hora de la respuesta: se quita antes de buscar datos del préstamo, porque un "14" en el
+        // minuto, el segundo o los microsegundos del timestamp hacía fallar esta prueba al azar.
+        String ajenoSinHora = ajeno.replaceAll("\"timestamp\":\"[^\"]*\"", "");
+        String inexistenteSinHora = inexistente.replaceAll("\"timestamp\":\"[^\"]*\"", "");
+
+        assertFalse(ajenoSinHora.contains("ana") || ajenoSinHora.contains("14"), "no debe filtrar datos del préstamo");
+        assertEquals(ajenoSinHora, inexistenteSinHora, "ajeno e inexistente deben ser indistinguibles");
     }
 
     @Test
