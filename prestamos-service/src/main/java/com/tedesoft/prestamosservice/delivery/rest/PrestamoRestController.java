@@ -56,6 +56,21 @@ public class PrestamoRestController {
     }
 
     /**
+     * La persona cuyos préstamos se listan. El auxiliar pide la que quiera (o ninguna: todos). El usuario solo puede
+     * pedir la suya: la otra se rechaza aquí, antes de consultar, para que el 403 sea idéntico exista o no la persona.
+     */
+    private static String personaVisiblePara(String pedida, Authentication autenticacion) {
+        if (Roles.esAuxiliar(autenticacion)) {
+            return pedida;
+        }
+        String propia = solicitanteDelToken(autenticacion);
+        if (pedida == null || pedida.equals(propia)) {
+            return propia;
+        }
+        throw new AccessDeniedException("préstamos de otra persona");
+    }
+
+    /**
      * Quién solicita es el {@code sub} del token. Un token válido sin un {@code sub} utilizable no identifica a
      * nadie: se responde 403 en lugar de guardar un préstamo sin dueño.
      */
@@ -68,15 +83,20 @@ public class PrestamoRestController {
     }
 
     /**
-     * Lista préstamos, el más reciente primero. Con {@code persona} solo los de esa persona; con {@code estado}
-     * solo los de ese estado. Provisional: con la seguridad (SCRUM-20) "mis préstamos" saldrá del token y
-     * ver los de otra persona quedará reservado al auxiliar.
+     * Lista préstamos, el más reciente primero (SCRUM-24). Cada rol ve distinto:
+     * <ul>
+     *   <li><b>Auxiliar:</b> los de cualquier persona ({@code persona}) o de todas, y filtrables por {@code estado}.</li>
+     *   <li><b>Usuario:</b> solo los suyos: sin {@code persona} o con su propio sub, los suyos; con la de otra
+     *       persona, 403, igual exista o no y tenga o no préstamos, y sin consultar la base.</li>
+     * </ul>
      */
     @GetMapping
     public ResponseEntity<List<PrestamoResponseDto>> listar(
             @Valid FiltroPersonaDto filtro,
-            @RequestParam(required = false) EstadoPrestamo estado) {
-        return ResponseEntity.ok(prestamoService.listar(filtro.persona(), estado).stream()
+            @RequestParam(required = false) EstadoPrestamo estado,
+            Authentication autenticacion) {
+        String persona = personaVisiblePara(filtro.persona(), autenticacion);
+        return ResponseEntity.ok(prestamoService.listar(persona, estado).stream()
                 .map(PrestamoResponseDto::desde)
                 .toList());
     }
