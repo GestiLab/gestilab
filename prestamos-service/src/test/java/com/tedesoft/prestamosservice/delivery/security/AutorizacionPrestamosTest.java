@@ -265,7 +265,7 @@ class AutorizacionPrestamosTest {
         mockMvc.perform(MockMvcRequestBuilders.post(BASE)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.usuario())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"unidadId\":14,\"solicitanteId\":\"" + TokensDePrueba.SUJETO_USUARIO + "\"}"))
+                        .content("{\"unidadId\":14}"))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(peticion(HttpMethod.GET, BASE + "/1", TokensDePrueba.usuario()))
@@ -294,6 +294,17 @@ class AutorizacionPrestamosTest {
 
         assertFalse(ajenoSinHora.contains("ana") || ajenoSinHora.contains("14"), "no debe filtrar datos del préstamo");
         assertEquals(ajenoSinHora, inexistenteSinHora, "ajeno e inexistente deben ser indistinguibles");
+    }
+
+    @ParameterizedTest(name = "sub con {0} → 403 sin consultar")
+    @MethodSource("com.tedesoft.prestamosservice.delivery.rest.PrestamoRestControllerTest#subsNoUtilizables")
+    @DisplayName("SCRUM-24: con un sub no utilizable el usuario no consulta ningún préstamo, ni el de su sub recortado")
+    void usuario_subNoUtilizable_noConsultaElPrestamo(String caso, String sub) throws Exception {
+        // El préstamo 1 es de "ana"; " ana" es otro sub, aunque el dominio lo recortaría al guardar
+        mockMvc.perform(peticion(HttpMethod.GET, BASE + "/1", TokensDePrueba.valido(sub, "usuario")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(prestamoService);
     }
 
     @Test
@@ -397,7 +408,7 @@ class AutorizacionPrestamosTest {
         return MockMvcRequestBuilders.post(BASE)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"unidadId\":14,\"solicitanteId\":\"" + TokensDePrueba.SUJETO_USUARIO + "\"}");
+                .content("{\"unidadId\":14}");
     }
 
     private static MockHttpServletRequestBuilder consulta(String ruta, String token) {

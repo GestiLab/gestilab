@@ -27,20 +27,24 @@ Para usar otros valores, copia `.env.example` a `.env` (está en el `.gitignore`
 
 Ruta base: `/api/v1/prestamos-service/prestamos`.
 
+Todas las rutas piden token (ver [Seguridad](#seguridad-scrum-20)). Los ejemplos usan `$TOKEN_USUARIO` y `$TOKEN_AUXILIAR`; con Keycloak levantado, `eval "$(python3 keycloak/verificar_tokens.py --exportar)"` los exporta (ver `keycloak/README.md`).
+
 ### `POST /prestamos`: solicitar una unidad
 
 ```bash
 curl -X POST localhost:8090/api/v1/prestamos-service/prestamos \
+  -H "Authorization: Bearer $TOKEN_USUARIO" \
   -H 'Content-Type: application/json' \
-  -d '{"unidadId": 14, "solicitanteId": "ana"}'
+  -d '{"unidadId": 14}'
 ```
 
 | Campo | Reglas |
 |---|---|
 | `unidadId` | Obligatorio, mayor que 0. Es el id de la unidad en `inventario-service`. |
-| `solicitanteId` | Obligatorio, hasta 100 caracteres, sin caracteres de control. Se recortan los espacios. Es **provisional**: con la seguridad (SCRUM-20) saldrá del `sub` del token y este campo desaparecerá. |
 
-Responde `201` con el encabezado `Location` y el préstamo:
+**Quién solicita sale del `sub` del token** (solo el rol `usuario` puede solicitar). El cuerpo no lo trae: si llega un `solicitanteId`, se ignora. El `sub` se usa tal cual, sin recortarlo, y responde `403` si falta, está en blanco, tiene espacios en los extremos, caracteres de control o más de 100 caracteres (el largo de `solicitante_id`); lo mismo en `GET /prestamos` y `GET /prestamos/{id}` del `usuario`. Con Keycloak es un UUID de 36 caracteres, así que no debería pasar. Para consultar a inventario, el servicio **reenvía el token de quien solicita**, así que esa consulta también pasa la validación de seguridad. Si inventario lo rechaza (`401` o `403`), la solicitud responde `502` y no se crea el préstamo.
+
+Responde `201` con el encabezado `Location` y el préstamo (`solicitanteId` es el `sub` del token; en Keycloak es un UUID y en los ejemplos, "ana"):
 
 ```json
 {
@@ -59,27 +63,37 @@ La fecha prevista es la de hoy (reloj inyectado) más la duración máxima del t
 
 ### `GET /prestamos/{id}`: consultar un préstamo
 
-Responde `200` con el mismo cuerpo, o `404` si no existe.
+Responde `200` con el mismo cuerpo. El auxiliar recibe `404` si no existe; el `usuario` solo consulta los suyos, y uno ajeno o inexistente le responde el mismo `403`.
 
 ### `GET /prestamos`: listar préstamos
 
 ```bash
-curl 'localhost:8090/api/v1/prestamos-service/prestamos?persona=ana&estado=SOLICITADO'
+curl -H "Authorization: Bearer $TOKEN_AUXILIAR" \
+  "localhost:8090/api/v1/prestamos-service/prestamos?persona=$SUB_PERSONA&estado=SOLICITADO"
 ```
+
+`persona` es el `sub` de esa persona: con Keycloak, un UUID (por ejemplo `3d0d1b8e-f5eb-4358-853c-cc801fe63b57`), no su nombre de usuario. Un nombre como "ana" solo coincide en las pruebas.
 
 | Parámetro | Reglas |
 |---|---|
-| `persona` | Opcional. Solo los préstamos de esa persona. Se recortan los espacios y después debe tener entre 1 y 100 caracteres, sin caracteres de control. |
+| `persona` | Opcional. Solo los préstamos de esa persona (el `usuario` solo puede pedir la suya: ver abajo). Se recortan los espacios y después debe tener entre 1 y 100 caracteres, sin caracteres de control. |
 | `estado` | Opcional. `SOLICITADO`, `ENTREGADO` o `DEVUELTO`, en mayúsculas. |
 
-Los dos filtros se combinan; sin filtros trae todos. Responde `200` con una lista del mismo cuerpo que al consultar un préstamo, del más reciente al más antiguo, o con `[]` si nada coincide. Un parámetro inválido responde `400` con el formato común y el detalle en `errores`.
+Los dos filtros se combinan; sin filtros, el auxiliar recibe todos y el usuario, los suyos. Responde `200` con una lista del mismo cuerpo que al consultar un préstamo, del más reciente al más antiguo, o con `[]` si nada coincide. Un parámetro inválido responde `400` con el formato común y el detalle en `errores`.
 
-Hoy el servicio no valida quién pregunta. Con la seguridad (SCRUM-20), ver los préstamos de otra persona quedará reservado al auxiliar y los propios saldrán del token (SCRUM-24).
+**Qué ve cada rol** (SCRUM-24):
+
+| Quién pregunta | Sin `persona` | Con `persona` |
+|---|---|---|
+| `usuario` | solo los suyos (la persona sale de su token) | la suya: los suyos; la de otra persona: `403`, igual exista o no y tenga o no préstamos |
+| `auxiliar` | los de todas las personas | los de esa persona |
+
+`estado` filtra en los dos casos. El `403` se decide antes de consultar la base y usa el cuerpo común, sin datos de los préstamos.
 
 ### `GET /prestamos/retrasos`: listar los préstamos retrasados
 
 ```bash
-curl localhost:8090/api/v1/prestamos-service/prestamos/retrasos
+curl -H "Authorization: Bearer $TOKEN_AUXILIAR" localhost:8090/api/v1/prestamos-service/prestamos/retrasos
 ```
 
 Es solo para el auxiliar: con un token de `usuario` responde `403` (sin datos de los préstamos) y sin token, `401`. Responde `200` con la lista, del más atrasado al menos atrasado, o con `[]` si no hay retrasos:
@@ -103,7 +117,8 @@ Un préstamo está retrasado cuando está `ENTREGADO` y su fecha de devolución 
 La **fotografía es obligatoria**: va como la parte `foto` de una petición `multipart/form-data` (PNG o JPEG, máximo 5 MB). Sin ella (sin cuerpo, con JSON o sin esa parte) responde `400` con `La fotografía es obligatoria` y el préstamo no cambia de estado. Responden `200` con el préstamo actualizado.
 
 ```bash
-curl -X PATCH http://localhost:8090/api/v1/prestamos-service/prestamos/1/entregar -F "foto=@entrega.jpg"
+curl -X PATCH http://localhost:8090/api/v1/prestamos-service/prestamos/1/entregar \
+  -H "Authorization: Bearer $TOKEN_AUXILIAR" -F "foto=@entrega.jpg"
 ```
 
 | Ruta | Pasa de | A | Evento publicado |
@@ -139,11 +154,11 @@ El servicio valida el token firmado por Keycloak y lee el rol de `realm_access.r
 | Operación | `usuario` | `auxiliar` |
 |---|---|---|
 | `POST /prestamos` (solicitar una unidad) | sí | no (`403`) |
-| `GET /prestamos` (listar) | sí | sí |
+| `GET /prestamos` (listar) | solo los suyos | todos o los de una persona |
 | `GET /prestamos/{id}` | solo los suyos | cualquiera |
 | `GET /prestamos/retrasos`, `PATCH /prestamos/{id}/entregar`, `PATCH /prestamos/{id}/recibir`, `GET /prestamos/{id}/foto-entrega` y `foto-devolucion` | no (`403`) | sí |
 
-Un usuario que pide el préstamo de otra persona, o uno que no existe, recibe el mismo `403`: no puede averiguar qué números existen. El auxiliar recibe `404` si no existe. Quién es el solicitante sale hoy del cuerpo de la solicitud; pasará a salir del `sub` del token con SCRUM-24, que también reenviará el token a inventario. **Hasta entonces la solicitud real recibe `502` de inventario** (que ya exige token) y el usuario solo verá un préstamo si su `sub` coincide con el `solicitanteId` guardado.
+Un usuario que pide el préstamo de otra persona, o uno que no existe, recibe el mismo `403`: no puede averiguar qué números existen. El auxiliar recibe `404` si no existe. Quién es el solicitante sale del `sub` del token (SCRUM-24) y la consulta a inventario viaja con el token de quien solicita, así que la solicitud ya no recibe `502` por eso. Los préstamos guardados antes de SCRUM-24 con un solicitante de texto libre (por ejemplo "ana") no coinciden con ningún `sub` real: eran datos de prueba y no se migran.
 
 | Variable | Qué es | Por defecto |
 |---|---|---|
@@ -213,8 +228,11 @@ Las pruebas de concurrencia corren contra PostgreSQL real (`ConcurrenciaPostgres
 
 Resultados: unidad encontrada → objeto de dominio; inventario responde 404 → `RecursoNoEncontradoException` (404); inventario apagado, lento (más del timeout), con 5xx o con una respuesta que no cumple el contrato → `DependenciaNoDisponibleException` (503); inventario responde otro 4xx (400, 401, 403...) → `DependenciaRechazadaException` (502). Ver `docs/guia-errores.md`.
 
-Las pruebas del cliente usan un stub HTTP del contrato y no necesitan inventario. La prueba contra inventario real (CA-7) está desactivada por defecto; con ambos servicios en ejecución y los datos iniciales cargados:
+Cada consulta lleva el token de quien solicita (SCRUM-24): lo agrega `ReenvioDeTokenInterceptor`, registrado en `InventarioClientConfig`. Si el contexto de seguridad no trae un JWT, la consulta sale sin token y queda un aviso en el registro que lo explica. El token nunca se escribe en el registro: el cliente HTTP del JDK, que en `DEBUG` escribe todas las cabeceras, queda en `INFO` (`logging.level.sun.net.www.protocol.http`).
+
+Las pruebas del cliente usan un stub HTTP del contrato y no necesitan inventario; `SolicitarConTokenDePuntaAPuntaTest` recorre la solicitud completa contra ese stub. La prueba contra inventario real (CA-7) está desactivada por defecto. Necesita Keycloak e inventario en ejecución, con los datos iniciales cargados, y el token de un usuario, porque inventario lo exige:
 
 ```bash
+eval "$(python3 ../keycloak/verificar_tokens.py --exportar)"
 INVENTARIO_IT=true ./mvnw test -Dtest=InventarioHttpClientIntegracionTest
 ```

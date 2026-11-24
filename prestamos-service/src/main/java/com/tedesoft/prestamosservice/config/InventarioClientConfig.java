@@ -1,6 +1,7 @@
 package com.tedesoft.prestamosservice.config;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import com.tedesoft.prestamosservice.infrastructure.inventario.ReenvioDeTokenInterceptor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -24,6 +25,8 @@ public class InventarioClientConfig {
         return builder
                 .baseUrl(propiedades.url())
                 .requestFactory(fabrica)
+                // SCRUM-24, CA-3: cada consulta lleva el token de quien solicita
+                .requestInterceptor(new ReenvioDeTokenInterceptor())
                 .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE)
                 .build();
     }

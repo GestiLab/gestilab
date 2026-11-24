@@ -76,8 +76,8 @@ public class SeguridadConfig {
                         // Solicitar una unidad: solo el usuario (la matriz del enunciado la niega al auxiliar)
                         .requestMatchers(antMatcher(HttpMethod.POST, prestamos))
                         .hasRole(Roles.USUARIO)
-                        // Listar y consultar un préstamo: los dos roles. Que el usuario solo vea lo suyo necesita el
-                        // préstamo y vive en el controlador (GET /{id}); el listado por persona es de SCRUM-24.
+                        // Listar y consultar un préstamo: los dos roles. Que el usuario solo vea lo suyo depende del sub
+                        // y del préstamo, y lo decide el controlador (GET /{id} y el listado por persona, SCRUM-24).
                         .requestMatchers(
                                 antMatcher(HttpMethod.GET, prestamos),
                                 antMatcher(HttpMethod.GET, prestamos + "/*"))

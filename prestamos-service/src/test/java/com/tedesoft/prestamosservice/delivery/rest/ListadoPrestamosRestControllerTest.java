@@ -6,23 +6,30 @@ import com.tedesoft.prestamosservice.domain.services.IPrestamoService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.Mockito.verify;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import com.tedesoft.prestamosservice.delivery.security.ConSeguridadDePrueba;
+import com.tedesoft.prestamosservice.delivery.security.RespuestaErrorSeguridad;
+import com.tedesoft.prestamosservice.delivery.security.TokensDePrueba;
 
 /** SCRUM-24: capa web del listado con el servicio simulado. */
 @ConSeguridadDePrueba
@@ -49,7 +56,7 @@ class ListadoPrestamosRestControllerTest {
     void listar_porPersona_debeRetornar200ConLosPrestamos() throws Exception {
         when(prestamoService.listar("ana", null)).thenReturn(List.of(prestamo(2L, "ana"), prestamo(1L, "ana")));
 
-        mockMvc.perform(get(RUTA).param("persona", "ana"))
+        mockMvc.perform(get(RUTA).param("persona", "ana").header(HttpHeaders.AUTHORIZATION, comoAuxiliar()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[0].id").value(2))
@@ -64,28 +71,172 @@ class ListadoPrestamosRestControllerTest {
     void listar_porEstado_debePasarElEstadoAlServicio() throws Exception {
         when(prestamoService.listar(null, EstadoPrestamo.SOLICITADO)).thenReturn(List.of(prestamo(1L, "ana")));
 
-        mockMvc.perform(get(RUTA).param("estado", "SOLICITADO"))
+        mockMvc.perform(get(RUTA).param("estado", "SOLICITADO").header(HttpHeaders.AUTHORIZATION, comoAuxiliar()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1));
         verify(prestamoService).listar(null, EstadoPrestamo.SOLICITADO);
     }
 
-    @Test
-    @DisplayName("sin parámetros → 200 con todos")
-    void listar_sinParametros_debePedirTodos() throws Exception {
-        when(prestamoService.listar(null, null)).thenReturn(List.of(prestamo(1L, "ana")));
+    /** El token de un usuario: su sub es "ana". Sin esta cabecera, estas pruebas usan el token de un auxiliar. */
+    private static String comoUsuario() {
+        return "Bearer " + TokensDePrueba.usuario();
+    }
 
-        mockMvc.perform(get(RUTA)).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
+    /** El token de un auxiliar, explícito en las pruebas cuyo criterio depende del rol (CA-4, CA-6, CA-7). */
+    private static String comoAuxiliar() {
+        return "Bearer " + TokensDePrueba.auxiliar();
     }
 
     @Test
-    @DisplayName("CA-7: persona sin préstamos → 200 con lista vacía")
+    @DisplayName("CA-1: un usuario sin ?persona recibe solo los suyos (la persona sale de su token)")
+    void usuario_sinPersona_veSoloLosSuyos() throws Exception {
+        when(prestamoService.listar("ana", null)).thenReturn(List.of(prestamo(2L, "ana"), prestamo(1L, "ana")));
+
+        mockMvc.perform(get(RUTA).header(HttpHeaders.AUTHORIZATION, comoUsuario()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].solicitanteId").value("ana"))
+                .andExpect(jsonPath("$[1].solicitanteId").value("ana"));
+
+        verify(prestamoService).listar("ana", null);
+        verifyNoMoreInteractions(prestamoService);
+    }
+
+    @Test
+    @DisplayName("CA-1: un usuario con ?estado filtra solo entre los suyos")
+    void usuario_conEstado_filtraSoloEntreLosSuyos() throws Exception {
+        when(prestamoService.listar("ana", EstadoPrestamo.SOLICITADO)).thenReturn(List.of(prestamo(1L, "ana")));
+
+        mockMvc.perform(get(RUTA).param("estado", "SOLICITADO").header(HttpHeaders.AUTHORIZATION, comoUsuario()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+
+        verify(prestamoService).listar("ana", EstadoPrestamo.SOLICITADO);
+        verifyNoMoreInteractions(prestamoService);
+    }
+
+    @Test
+    @DisplayName("un usuario que pide ?persona= con su propio sub recibe los suyos")
+    void usuario_conSuPropioSub_veLosSuyos() throws Exception {
+        when(prestamoService.listar("ana", null)).thenReturn(List.of(prestamo(1L, "ana")));
+
+        mockMvc.perform(get(RUTA).param("persona", "ana").header(HttpHeaders.AUTHORIZATION, comoUsuario()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+
+        verify(prestamoService).listar("ana", null);
+    }
+
+    @Test
+    @DisplayName("CA-5: un usuario que pide los de otra persona recibe 403 con el formato común y sin consultar")
+    void usuario_conPersonaAjena_403_sinConsultar() throws Exception {
+        // Si la regla fallara, estos datos saldrían en la respuesta
+        when(prestamoService.listar("luis", null)).thenReturn(List.of(prestamo(7L, "luis")));
+
+        mockMvc.perform(get(RUTA).param("persona", "luis").header(HttpHeaders.AUTHORIZATION, comoUsuario()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.mensaje").value(RespuestaErrorSeguridad.MENSAJE_403))
+                .andExpect(jsonPath("$[0]").doesNotExist());
+
+        verifyNoInteractions(prestamoService);
+    }
+
+    @Test
+    @DisplayName("CA-5: pedir una persona ajena da la misma respuesta exista o no, para no revelar nada")
+    void usuario_personaAjena_mismaRespuestaExistaONo() throws Exception {
+        when(prestamoService.listar("luis", null)).thenReturn(List.of(prestamo(7L, "luis")));
+
+        String conPrestamos = mockMvc.perform(get(RUTA).param("persona", "luis")
+                        .header(HttpHeaders.AUTHORIZATION, comoUsuario()))
+                .andExpect(status().isForbidden())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        String inexistente = mockMvc.perform(get(RUTA).param("persona", "nadie")
+                        .header(HttpHeaders.AUTHORIZATION, comoUsuario()))
+                .andExpect(status().isForbidden())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        assertEquals(conPrestamos.replaceAll("\"timestamp\":\"[^\"]*\"", ""),
+                inexistente.replaceAll("\"timestamp\":\"[^\"]*\"", ""),
+                "persona con préstamos y persona inexistente deben ser indistinguibles");
+        verifyNoInteractions(prestamoService);
+    }
+
+    @Test
+    @DisplayName("un token sin un sub utilizable no identifica a nadie → 403 y no consulta")
+    void usuario_tokenSinSubUtilizable_403_sinConsultar() throws Exception {
+        mockMvc.perform(get(RUTA).header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.valido(" ", "usuario")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(prestamoService);
+    }
+
+    /**
+     * El servicio recorta la persona: sin la guarda, un token con sub " ana" pediría listar(" ana") y vería los de
+     * "ana". Mismos casos que al solicitar.
+     */
+    @ParameterizedTest(name = "sub con {0} → 403 sin consultar")
+    @MethodSource("com.tedesoft.prestamosservice.delivery.rest.PrestamoRestControllerTest#subsNoUtilizables")
+    @DisplayName("un usuario con un sub no utilizable no lista nada, ni siquiera los de su sub recortado")
+    void usuario_subNoUtilizable_403_sinConsultar(String caso, String sub) throws Exception {
+        when(prestamoService.listar("ana", null)).thenReturn(List.of(prestamo(1L, "ana")));
+
+        mockMvc.perform(get(RUTA).header(HttpHeaders.AUTHORIZATION, "Bearer " + TokensDePrueba.valido(sub, "usuario")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.mensaje").value(RespuestaErrorSeguridad.MENSAJE_403))
+                .andExpect(jsonPath("$[0]").doesNotExist());
+
+        verifyNoInteractions(prestamoService);
+    }
+
+    @Test
+    @DisplayName("sin parámetros, el auxiliar → 200 con todos")
+    void listar_sinParametros_debePedirTodos() throws Exception {
+        when(prestamoService.listar(null, null)).thenReturn(List.of(prestamo(1L, "ana")));
+
+        mockMvc.perform(get(RUTA).header(HttpHeaders.AUTHORIZATION, comoAuxiliar()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+        verify(prestamoService).listar(null, null);
+    }
+
+    @Test
+    @DisplayName("un token con los dos roles cuenta como auxiliar: sin ?persona ve los de todos")
+    void tokenConLosDosRoles_cuentaComoAuxiliar() throws Exception {
+        when(prestamoService.listar(null, null)).thenReturn(List.of(prestamo(2L, "luis"), prestamo(1L, "ana")));
+
+        mockMvc.perform(get(RUTA).header(HttpHeaders.AUTHORIZATION,
+                        "Bearer " + TokensDePrueba.valido("ana", "usuario", "auxiliar")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+
+        verify(prestamoService).listar(null, null);
+    }
+
+    @Test
+    @DisplayName("CA-7: el auxiliar pide una persona sin préstamos → 200 con lista vacía")
     void listar_sinResultados_debeRetornar200ConListaVacia() throws Exception {
         when(prestamoService.listar("nadie", null)).thenReturn(List.of());
 
-        mockMvc.perform(get(RUTA).param("persona", "nadie"))
+        mockMvc.perform(get(RUTA).param("persona", "nadie").header(HttpHeaders.AUTHORIZATION, comoAuxiliar()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
+        // Sin esto pasaría igual aunque no se consultara: el simulado devuelve [] por defecto
+        verify(prestamoService).listar("nadie", null);
+    }
+
+    @Test
+    @DisplayName("CA-7: un usuario sin préstamos → 200 con lista vacía, buscada con su propio sub")
+    void usuario_sinPrestamos_recibe200ConListaVacia() throws Exception {
+        when(prestamoService.listar("sofia", null)).thenReturn(List.of());
+
+        mockMvc.perform(get(RUTA).header(HttpHeaders.AUTHORIZATION,
+                        "Bearer " + TokensDePrueba.valido("sofia", "usuario")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        verify(prestamoService).listar("sofia", null);
+        verifyNoMoreInteractions(prestamoService);
     }
 
     @ParameterizedTest(name = "persona inválida «{0}» → 400 sin llamar al servicio")

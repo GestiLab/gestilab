@@ -4,8 +4,9 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
- * Filtro opcional por persona del listado de préstamos. Sigue las reglas de {@code solicitanteId} al
- * solicitar: primero se recorta y después se valida, y {@code null} significa que no se filtra.
+ * Filtro opcional por persona del listado de préstamos: primero se recorta y después se valida (entre 1 y 100
+ * caracteres, sin caracteres de control); {@code null} significa que no se filtra. Qué persona puede pedir cada
+ * rol lo decide el controlador (SCRUM-24).
  */
 public record FiltroPersonaDto(
 

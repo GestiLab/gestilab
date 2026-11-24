@@ -48,6 +48,7 @@ final class InventarioStub implements AutoCloseable {
     private final AtomicInteger peticiones = new AtomicInteger();
     private final Map<Long, String> cuerpos = new ConcurrentHashMap<>();
     private volatile long retardoMs;
+    private volatile String ultimaAutorizacion;
 
     private InventarioStub(HttpServer servidor) {
         this.servidor = servidor;
@@ -80,6 +81,11 @@ final class InventarioStub implements AutoCloseable {
         return peticiones.get();
     }
 
+    /** Cabecera {@code Authorization} de la última petición recibida, o {@code null} si no la traía (SCRUM-24, CA-3). */
+    String ultimaAutorizacion() {
+        return ultimaAutorizacion;
+    }
+
     @Override
     public void close() {
         servidor.stop(0);
@@ -88,6 +94,7 @@ final class InventarioStub implements AutoCloseable {
 
     private void atender(HttpExchange intercambio) throws IOException {
         peticiones.incrementAndGet();
+        ultimaAutorizacion = intercambio.getRequestHeaders().getFirst("Authorization");
         try {
             if (retardoMs > 0) {
                 Thread.sleep(retardoMs);
