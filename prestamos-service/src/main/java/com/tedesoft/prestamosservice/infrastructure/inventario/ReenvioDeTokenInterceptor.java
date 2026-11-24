@@ -37,8 +37,8 @@ public class ReenvioDeTokenInterceptor implements ClientHttpRequestInterceptor {
             peticion.getHeaders().setBearerAuth(jwt.getToken().getTokenValue());
         } else {
             // Solo el tipo: ni el token ni las credenciales de otra autenticación
-            log.warn("Consulta a inventario sin token: en el contexto de seguridad hay {} y no un JWT; inventario"
-                            + " responderá 401",
+            log.warn("Consulta a inventario sin token: el contexto de seguridad no trae un JWT (trae: {});"
+                            + " inventario responderá 401",
                     autenticacion == null ? "ninguna autenticación" : autenticacion.getClass().getSimpleName());
         }
         return ejecucion.execute(peticion, cuerpo);

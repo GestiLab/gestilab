@@ -69,8 +69,10 @@ Responde `200` con el mismo cuerpo. El auxiliar recibe `404` si no existe; el `u
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN_AUXILIAR" \
-  'localhost:8090/api/v1/prestamos-service/prestamos?persona=ana&estado=SOLICITADO'
+  "localhost:8090/api/v1/prestamos-service/prestamos?persona=$SUB_PERSONA&estado=SOLICITADO"
 ```
+
+`persona` es el `sub` de esa persona: con Keycloak, un UUID (por ejemplo `3d0d1b8e-f5eb-4358-853c-cc801fe63b57`), no su nombre de usuario. Un nombre como "ana" solo coincide en las pruebas.
 
 | Parámetro | Reglas |
 |---|---|
