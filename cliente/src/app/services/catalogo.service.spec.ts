@@ -227,4 +227,155 @@ describe('CatalogoService', () => {
     servicio.siguiente();
     http.expectNone((r) => r.url === url);
   });
+  // ── Actualización automática: temporizador simulado, no se espera tiempo real ──
+  describe('actualización automática', () => {
+    const unidad = (estado: 'DISPONIBLE' | 'PRESTADA'): PaginaUnidades => ({
+      number: 0,
+      totalElements: 1,
+      content: [{
+        id: 1, numeroInventario: 'MULT-001', estado,
+        tipo: { id: 2, nombre: 'Multímetro', duracionMaximaDias: 7, requiereAutorizacion: false },
+      }],
+    });
+
+    // Deja el catálogo con su primera respuesta y la actualización encendida.
+    function abrirCatalogo(estado: 'DISPONIBLE' | 'PRESTADA' = 'DISPONIBLE') {
+      servicio.cargarPagina();
+      pedida().flush(unidad(estado));
+      servicio.iniciarActualizacion();
+    }
+
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => {
+      servicio.detenerActualizacion();
+      vi.useRealTimers();
+    });
+
+    it('SCRUM-39 CA-1: una entrega se ve en pantalla en el siguiente turno, sin recargar', () => {
+      abrirCatalogo('DISPONIBLE');
+      expect(servicio.unidades()[0].estado).toBe('DISPONIBLE');
+
+      vi.advanceTimersByTime(2000);
+      pedida().flush(unidad('PRESTADA'));
+
+      expect(servicio.unidades()[0].estado).toBe('PRESTADA');
+    });
+
+    it('SCRUM-39 CA-2: una devolución se ve en pantalla en el siguiente turno', () => {
+      abrirCatalogo('PRESTADA');
+
+      vi.advanceTimersByTime(2000);
+      pedida().flush(unidad('DISPONIBLE'));
+
+      expect(servicio.unidades()[0].estado).toBe('DISPONIBLE');
+    });
+
+    it('al actualizarse no parpadea: no pasa por "cargando" y la lista sigue visible', () => {
+      abrirCatalogo();
+
+      vi.advanceTimersByTime(2000);
+      expect(servicio.cargando()).toBe(false);
+      expect(servicio.mostrarLista()).toBe(true);
+      pedida().flush(unidad('PRESTADA'));
+      expect(servicio.mostrarLista()).toBe(true);
+    });
+
+    it('SCRUM-39 CA-3: pide la misma página con los mismos filtros', () => {
+      servicio.cambiarTipo(2);
+      responder(0, 120);
+      servicio.cambiarSoloDisponibles(true);
+      responder(0, 120);
+      servicio.siguiente();
+      responder(1, 120);
+      servicio.iniciarActualizacion();
+
+      vi.advanceTimersByTime(2000);
+      const peticion = pedida();
+      expect(peticion.request.params.get('page')).toBe('1');
+      expect(peticion.request.params.get('tipoId')).toBe('2');
+      expect(peticion.request.params.get('estado')).toBe('DISPONIBLE');
+      peticion.flush({ number: 1, totalElements: 120, content: [] });
+
+      expect(servicio.paginaActual()).toBe(1);
+    });
+
+    it('SCRUM-39 CA-4: al detenerla no se hacen más consultas, ni siquiera una que estaba en vuelo', () => {
+      abrirCatalogo();
+      vi.advanceTimersByTime(2000);
+      const enVuelo = pedida();
+
+      servicio.detenerActualizacion();
+      expect(enVuelo.cancelled).toBe(true);
+
+      vi.advanceTimersByTime(20000);
+      http.expectNone((r) => r.url === url);
+    });
+
+    it('encenderla dos veces deja un solo temporizador y una sola consulta por turno', () => {
+      abrirCatalogo();
+      servicio.iniciarActualizacion();
+      expect(vi.getTimerCount()).toBe(1);     // si no limpiara el anterior, serían 2
+
+      vi.advanceTimersByTime(2000);
+      pedida().flush(unidad('DISPONIBLE'));
+    });
+
+    it('SCRUM-39 CA-5: si una consulta falla, la lista no se borra y se reintenta en el siguiente turno', () => {
+      abrirCatalogo('DISPONIBLE');
+
+      vi.advanceTimersByTime(2000);
+      pedida().error(new ProgressEvent('error'), { status: 0 });
+      expect(servicio.unidades()[0].estado).toBe('DISPONIBLE');
+      expect(servicio.error()).toBeNull();
+      expect(servicio.mostrarLista()).toBe(true);
+
+      vi.advanceTimersByTime(2000);
+      pedida().flush(unidad('PRESTADA'));
+      expect(servicio.unidades()[0].estado).toBe('PRESTADA');
+    });
+
+    it('no apila consultas: si la anterior no ha respondido, espera', () => {
+      abrirCatalogo();
+
+      vi.advanceTimersByTime(2000);
+      const primera = pedida();
+      vi.advanceTimersByTime(2000);
+      http.expectNone((r) => r.url === url);   // no salió una segunda consulta
+      primera.flush(unidad('DISPONIBLE'));
+    });
+
+    it('no consulta antes de que llegue la primera respuesta', () => {
+      servicio.iniciarActualizacion();
+
+      vi.advanceTimersByTime(2000);
+      http.expectNone((r) => r.url === url);
+    });
+
+    it('no consulta mientras hay un error a la vista: ahí la persona usa "Reintentar"', () => {
+      servicio.cargarPagina();
+      pedida().error(new ProgressEvent('error'), { status: 0 });
+      servicio.iniciarActualizacion();
+
+      vi.advanceTimersByTime(2000);
+      http.expectNone((r) => r.url === url);
+    });
+
+    it('no consulta mientras la persona espera una página que pidió', () => {
+      abrirCatalogo();
+      servicio.cargarPagina(1);
+
+      vi.advanceTimersByTime(2000);
+      expect(http.match((r) => r.url === url).length).toBe(1);   // solo la de la persona
+    });
+
+    it('si la persona cambia de página, se descarta la consulta periódica que iba a medias', () => {
+      abrirCatalogo();
+      vi.advanceTimersByTime(2000);
+      const periodica = pedida();
+
+      servicio.cargarPagina(1);
+      expect(periodica.cancelled).toBe(true);
+      http.expectOne((r) => r.url === url && r.params.get('page') === '1').flush({ number: 1, totalElements: 120, content: [] });
+    });
+  });
 });

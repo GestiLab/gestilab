@@ -7,6 +7,10 @@ import { PaginaUnidades, TipoEquipo, Unidad } from '../models/unidad';
 // Unidades por página: el criterio de aceptación pide 20.
 const TAMANO_PAGINA = 20;
 
+// Cada cuánto se pregunta por cambios mientras la pantalla está abierta.
+// Con 2 s, un cambio de estado se ve en menos de 5 s.
+const INTERVALO_MS = 2000;
+
 // providedIn: 'root' → UNA sola instancia para toda la app. Así el estado
 // del catálogo vive en un solo lugar y no se copia en cada componente.
 @Injectable({ providedIn: 'root' })
@@ -34,6 +38,9 @@ export class CatalogoService {
 
   // Para cancelar la petición anterior si el usuario pide otra antes de que responda.
   private peticionActual?: Subscription;
+  // La consulta periódica es otra petición, aparte de la del usuario.
+  private consultaPeriodica?: Subscription;
+  private temporizador?: ReturnType<typeof setInterval>;
 
   // ── API pública: señales de SOLO LECTURA ────────────────────────────────
   // Un componente las lee llamándolas (catalogo.cargando()) y no guarda copias.
@@ -60,6 +67,8 @@ export class CatalogoService {
   // Pide una página al servicio de inventario y deja el resultado en las señales.
   cargarPagina(pagina = 0, tamano = TAMANO_PAGINA): void {
     this.peticionActual?.unsubscribe();   // si había una petición en vuelo, se descarta
+    this.consultaPeriodica?.unsubscribe(); // y también una consulta periódica a medias
+    this.consultaPeriodica = undefined;
     this._cargando.set(true);
     this._error.set(null);
     this._paginaActual.set(pagina);       // así "Reintentar" repite ESTA página
@@ -78,6 +87,42 @@ export class CatalogoService {
         error: (err: HttpErrorResponse) => {
           this._error.set(this.describirError(err));
           this._cargando.set(false);
+        },
+      });
+  }
+
+  // ── Actualización automática ────────────────────────────────────────────
+  // La pantalla la enciende al abrirse y la apaga al cerrarse (SCRUM-39 CA-4).
+  iniciarActualizacion(): void {
+    this.detenerActualizacion();   // nunca dos temporizadores a la vez
+    this.temporizador = setInterval(() => this.consultarCambios(), INTERVALO_MS);
+  }
+
+  detenerActualizacion(): void {
+    clearInterval(this.temporizador);
+    this.temporizador = undefined;
+    this.consultaPeriodica?.unsubscribe();   // si había una consulta en vuelo, se descarta
+    this.consultaPeriodica = undefined;
+  }
+
+  // Vuelve a pedir la MISMA página con los MISMOS filtros (SCRUM-39 CA-3) y cambia solo los datos.
+  // No toca "cargando" ni "error": así la lista no parpadea ni se oculta cada 2 s.
+  private consultarCambios(): void {
+    // Todavía no hay datos, hay un error a la vista (la persona usa "Reintentar") o hay otra
+    // petición en curso: este turno no se pide nada.
+    if (!this._consultado() || this._error() || this._cargando() || this.consultaPeriodica) return;
+
+    this.consultaPeriodica = this.http
+      .get<PaginaUnidades>(this.apiUrl, { params: this.armarParametros(this._paginaActual(), this._tamano()) })
+      .subscribe({
+        next: (respuesta) => {
+          this._unidades.set(respuesta.content);
+          this._totalElementos.set(respuesta.totalElements);
+          this.consultaPeriodica = undefined;
+        },
+        // SCRUM-39 CA-5: si falla, la lista queda como estaba y se reintenta en el siguiente turno.
+        error: () => {
+          this.consultaPeriodica = undefined;
         },
       });
   }
