@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged, map, skip, startWith } from 'rxjs';
 import { CatalogoService } from '../../services/catalogo.service';
@@ -111,7 +111,7 @@ import { ETIQUETA_ESTADO } from '../../models/unidad';
     </section>
   `,
 })
-export class Catalogo implements OnInit {
+export class Catalogo implements OnInit, OnDestroy {
 
   protected readonly catalogo = inject(CatalogoService);
   // Se tipa como parcial porque el backend puede traer un estado que el cliente aún no conoce.
@@ -138,6 +138,12 @@ export class Catalogo implements OnInit {
     this.catalogo.cargarTipos();
     this.catalogo.limpiarFiltros();
     this.catalogo.cargarPagina();
+    this.catalogo.iniciarActualizacion();   // mientras la pantalla esté abierta, se actualiza sola
+  }
+
+  // Al salir de la pantalla dejan de hacerse consultas periódicas (SCRUM-39 CA-4).
+  ngOnDestroy(): void {
+    this.catalogo.detenerActualizacion();
   }
 
   alEscribir(evento: Event): void {

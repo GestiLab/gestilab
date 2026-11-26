@@ -2,6 +2,7 @@ import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Catalogo } from './catalogo';
+import { CatalogoService } from '../../services/catalogo.service';
 import { environment } from '../../../environments/environment';
 import { PaginaUnidades, TipoEquipo, Unidad } from '../../models/unidad';
 
@@ -318,5 +319,19 @@ describe('Catalogo (pantalla)', () => {
     expect(html().querySelectorAll('th[scope="col"]').length).toBe(3);
     expect(html().querySelector('nav')?.getAttribute('aria-label')).toBe('Paginación del catálogo');
     expect(html().querySelector('[role="status"]')).not.toBeNull();
+  });
+
+  // ── Actualización automática: la pantalla la enciende al abrirse y la apaga al cerrarse ──
+  it('al abrir la pantalla enciende la actualización y al salir la apaga (SCRUM-39 CA-4)', async () => {
+    const servicio = TestBed.inject(CatalogoService);
+    const encender = vi.spyOn(servicio, 'iniciarActualizacion');
+    const apagar = vi.spyOn(servicio, 'detenerActualizacion');
+
+    await abrirPantalla();
+    expect(encender).toHaveBeenCalledTimes(1);
+    const antes = apagar.mock.calls.length;   // encender ya limpia un temporizador anterior
+
+    fixture.destroy();                        // la persona cambia de pantalla
+    expect(apagar.mock.calls.length).toBe(antes + 1);
   });
 });
