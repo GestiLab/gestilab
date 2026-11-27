@@ -1,3 +1,4 @@
+
 package com.tedesoft.prestamosservice.delivery.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -65,6 +66,10 @@ public class SeguridadConfig {
                         .requestMatchers(antMatcher("/salud")).permitAll()
                         // Retrasos (RF-08): solo el auxiliar. Va antes de GET /{id}: la primera regla que coincide gana.
                         .requestMatchers(antMatcher(HttpMethod.GET, prestamos + "/retrasos"))
+                        .hasRole(Roles.AUXILIAR)
+                        // Autorizar solicitudes pendientes: solo el auxiliar.
+                        // Un usuario con token válido recibe 403 y sin token válido recibe 401.
+                        .requestMatchers(antMatcher(HttpMethod.PATCH, prestamos + "/*/autorizar"))
                         .hasRole(Roles.AUXILIAR)
                         // Entregar, recibir y ver las fotos de la unidad: solo el auxiliar
                         .requestMatchers(

@@ -1,3 +1,4 @@
+
 package com.tedesoft.prestamosservice.infrastructure.persistence;
 
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
@@ -7,6 +8,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.stream.Collectors;
 
 /**
@@ -17,6 +19,9 @@ import java.util.stream.Collectors;
  *
  * <p>Si la base ya tiene dos préstamos abiertos de la misma unidad, el índice no se puede crear: se registra
  * un ERROR con el SQL y el servicio arranca igual (la comprobación en código sigue activa).
+ *
+ * <p>La autorización previa también exige actualizar la restricción CHECK de la columna estado,
+ * porque Hibernate no actualiza automáticamente esa restricción en una base existente.
  */
 @Slf4j
 @Component
@@ -42,11 +47,36 @@ public class IndiceUnicoPrestamoAbierto implements ApplicationRunner {
                 + " ON prestamo (unidad_id) WHERE estado IN (" + estados + ")";
     }
 
+    /**
+     * Actualiza el CHECK de estado con todos los valores del enum,
+     * incluidos los préstamos cerrados.
+     *
+     * El DROP y el ADD se ejecutan en una sola sentencia ALTER TABLE,
+     * sin eliminar registros existentes.
+     */
+    static String sqlActualizarCheck() {
+        String estados = Arrays.stream(EstadoPrestamo.values())
+                .map(e -> "'" + e.name() + "'")
+                .collect(Collectors.joining(", "));
+
+        return "ALTER TABLE prestamo "
+                + "DROP CONSTRAINT IF EXISTS prestamo_estado_check, "
+                + "ADD CONSTRAINT prestamo_estado_check "
+                + "CHECK (estado IN (" + estados + "))";
+    }
+
     @Override
     public void run(ApplicationArguments args) {
         if (!ControlConcurrenciaTransaccional.BaseDeDatos.esPostgres(jdbc)) {
             return;
         }
+
+        // Actualizar primero los estados admitidos por PostgreSQL.
+        // Si falla la migración, el servicio no debe arrancar con un CHECK incompatible.
+        jdbc.execute(sqlActualizarCheck());
+
+        log.info("Restricción CHECK de estados de préstamo actualizada");
+
         try {
             jdbc.execute(sqlEliminar());
             jdbc.execute(sql());

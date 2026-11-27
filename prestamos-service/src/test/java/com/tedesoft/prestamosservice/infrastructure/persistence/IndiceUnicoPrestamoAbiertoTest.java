@@ -1,3 +1,4 @@
+
 package com.tedesoft.prestamosservice.infrastructure.persistence;
 
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
@@ -30,5 +31,32 @@ class IndiceUnicoPrestamoAbiertoTest {
     void seEliminaAntesDeCrear() {
         assertThat(IndiceUnicoPrestamoAbierto.sqlEliminar())
                 .isEqualTo("DROP INDEX IF EXISTS " + IndiceUnicoPrestamoAbierto.NOMBRE);
+    }
+
+    @Test
+    @DisplayName("el CHECK de PostgreSQL admite todos los estados del préstamo")
+    void checkIncluyeTodosLosEstados() {
+        String sql = IndiceUnicoPrestamoAbierto.sqlActualizarCheck();
+
+        for (EstadoPrestamo estado : EstadoPrestamo.values()) {
+            assertThat(sql).contains("'" + estado.name() + "'");
+        }
+
+        assertThat(sql)
+                .contains("ALTER TABLE prestamo")
+                .contains("DROP CONSTRAINT IF EXISTS prestamo_estado_check")
+                .contains("ADD CONSTRAINT prestamo_estado_check")
+                .contains("CHECK (estado IN (");
+    }
+
+    @Test
+    @DisplayName("un préstamo pendiente de autorización reserva la unidad")
+    void pendienteDeAutorizacionReservaUnidad() {
+        assertThat(EstadoPrestamo.PENDIENTE_AUTORIZACION.estaActivo())
+                .isTrue();
+
+        assertThat(IndiceUnicoPrestamoAbierto.sql())
+                .contains("'PENDIENTE_AUTORIZACION'")
+                .doesNotContain("'DEVUELTO'");
     }
 }

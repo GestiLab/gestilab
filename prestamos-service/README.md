@@ -61,6 +61,40 @@ Responde `201` con el encabezado `Location` y el préstamo (`solicitanteId` es e
 
 La fecha prevista es la de hoy (reloj inyectado) más la duración máxima del tipo, que informa inventario. Esa duración se guarda en el préstamo: si la regla del tipo cambia después, el préstamo no cambia. No hay reglas por tipo de equipo en este servicio.
 
+
+### `PATCH /prestamos/{id}/autorizar`: autorizar una solicitud pendiente
+
+La necesidad de autorización se determina mediante
+el atributo `requiereAutorizacion` informado por
+`inventario-service`.
+
+Si es verdadero, el préstamo se crea en estado
+`PENDIENTE_AUTORIZACION`. Si es falso, se crea
+directamente en estado `SOLICITADO`.
+
+Solo el auxiliar puede autorizar una solicitud pendiente.
+La autorización cambia su estado a `SOLICITADO`,
+sin modificar las fechas ni la duración aplicada.
+
+| Código HTTP | Descripción                            |
+|-------------|----------------------------------------|
+| 200         | Préstamo autorizado correctamente.     |
+| 401         | Token ausente o inválido.              |
+| 403         | Rol sin permisos para autorizar.       |
+| 404         | Préstamo inexistente.                  |
+| 409         | El estado actual no permite autorizar. |
+
+La fecha prevista de devolución se calcula desde
+el momento de la solicitud, no desde la autorización.
+
+La autorización no publica el evento
+`UnidadCambioDeEstado`, porque la unidad todavía
+no ha sido entregada.
+
+Los préstamos pendientes cuentan dentro del límite
+de tres préstamos activos y reservan la unidad.
+
+
 ### `GET /prestamos/{id}`: consultar un préstamo
 
 Responde `200` con el mismo cuerpo. El auxiliar recibe `404` si no existe; el `usuario` solo consulta los suyos, y uno ajeno o inexistente le responde el mismo `403`.
@@ -156,6 +190,7 @@ El servicio valida el token firmado por Keycloak y lee el rol de `realm_access.r
 | `POST /prestamos` (solicitar una unidad) | sí | no (`403`) |
 | `GET /prestamos` (listar) | solo los suyos | todos o los de una persona |
 | `GET /prestamos/{id}` | solo los suyos | cualquiera |
+| `PATCH /prestamos/{id}/autorizar` | no (`403`) | sí |
 | `GET /prestamos/retrasos`, `PATCH /prestamos/{id}/entregar`, `PATCH /prestamos/{id}/recibir`, `GET /prestamos/{id}/foto-entrega` y `foto-devolucion` | no (`403`) | sí |
 
 Un usuario que pide el préstamo de otra persona, o uno que no existe, recibe el mismo `403`: no puede averiguar qué números existen. El auxiliar recibe `404` si no existe. Quién es el solicitante sale del `sub` del token (SCRUM-24) y la consulta a inventario viaja con el token de quien solicita, así que la solicitud ya no recibe `502` por eso. Los préstamos guardados antes de SCRUM-24 con un solicitante de texto libre (por ejemplo "ana") no coinciden con ningún `sub` real: eran datos de prueba y no se migran.
