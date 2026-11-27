@@ -7,6 +7,20 @@ GestiLab es un sistema desarrollado por el equipo TEDE-SOFT para gestionar el in
 
 > Desarrollo de Software III · Equipo TEDE-SOFT · Atributo de calidad: **Modificabilidad (RQ-01)**.
 
+
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=GestiLab_gestilab&metric=alert_status)](https://sonarcloud.io/dashboard?id=GestiLab_gestilab)
+
+## Calidad del código
+
+El proyecto utiliza SonarCloud para el análisis estático
+de inventario-service, prestamos-service y el cliente Angular.
+
+El análisis se ejecuta automáticamente mediante GitHub Actions
+e integra los informes de cobertura JaCoCo y LCOV.
+
+[Consultar resultados en SonarCloud](https://sonarcloud.io/dashboard?id=GestiLab_gestilab)
+
+
 ## Arquitectura
 
 GestiLab utiliza una arquitectura de dos microservicios independientes, cada uno con su propia base de datos. Se comunican mediante HTTP cuando necesitan una respuesta inmediata y mediante eventos cuando la información puede actualizarse de forma asíncrona.
