@@ -8,13 +8,16 @@ import com.tedesoft.prestamosservice.domain.models.EstadoUnidad;
 import com.tedesoft.prestamosservice.domain.models.UnidadInventario;
 import com.tedesoft.prestamosservice.domain.repositories.IPrestamoDao;
 import com.tedesoft.prestamosservice.domain.services.IPrestamoService;
+import com.tedesoft.prestamosservice.infrastructure.persistence.IndiceUnicoPrestamoAbierto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -30,6 +33,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
@@ -37,6 +41,9 @@ import static org.mockito.Mockito.when;
  * SCRUM-19, CA-9, CA-10 y CA-13: la concurrencia se prueba contra PostgreSQL real, no contra H2. H2 no
  * reproduce el índice único parcial ni el bloqueo asesor que protegen estas reglas. Si Docker no está
  * disponible, las pruebas se omiten.
+ *
+ * También se comprueba la concurrencia de las solicitudes pendientes
+ * de autorización y la migración de la restricción CHECK.
  */
 @SpringBootTest(properties = {
         "gestilab.eventos.procesador.habilitado=false",
@@ -54,6 +61,7 @@ class ConcurrenciaPostgresTest {
     @Autowired IPrestamoService servicio;
     @Autowired IPrestamoDao dao;
     @Autowired JdbcTemplate jdbc;
+    @Autowired IndiceUnicoPrestamoAbierto indice;
 
     @BeforeEach
     void limpiar() {
@@ -103,7 +111,8 @@ class ConcurrenciaPostgresTest {
 
     private long abiertosDeLaUnidad(long unidadId) {
         return jdbc.queryForObject(
-                "SELECT count(*) FROM prestamo WHERE unidad_id = ? AND estado IN ('SOLICITADO','ENTREGADO')",
+                "SELECT count(*) FROM prestamo WHERE unidad_id = ? "
+                        + "AND estado IN ('PENDIENTE_AUTORIZACION','SOLICITADO','ENTREGADO')",
                 Long.class, unidadId);
     }
 
@@ -167,6 +176,163 @@ class ConcurrenciaPostgresTest {
                 "SELECT indexdef FROM pg_indexes WHERE indexname = 'ux_prestamo_unidad_abierto'", String.class);
 
         assertThat(definicion).contains("UNIQUE").contains("unidad_id").contains("WHERE")
-                .contains("SOLICITADO").contains("ENTREGADO").doesNotContain("DEVUELTO");
+                .contains("SOLICITADO").contains("ENTREGADO")
+                .contains("PENDIENTE_AUTORIZACION")
+                .doesNotContain("DEVUELTO");
+    }
+
+    // ==========================================
+    // SOLICITUDES QUE REQUIEREN AUTORIZACION
+    // ==========================================
+
+    @Test
+    @DisplayName("Dos solicitudes simultáneas que requieren autorización: solo una se crea")
+    void solicitudesPendientesSimultaneas() throws Exception {
+
+        // Inventario informa que la unidad exige autorización previa.
+        when(inventario.obtenerUnidad(14L)).thenReturn(
+                new UnidadInventario(
+                        14L,
+                        "U-14",
+                        EstadoUnidad.DISPONIBLE,
+                        2L,
+                        7,
+                        true
+                )
+        );
+
+        List<Object> resultados = simultaneas(List.of(
+                () -> servicio.solicitar(14L, "ana"),
+                () -> servicio.solicitar(14L, "luis")
+        ));
+
+        // Solo una solicitud debe ser aceptada.
+        assertThat(creados(resultados)).isEqualTo(1);
+
+        // La otra solicitud debe ser rechazada por la regla de negocio.
+        assertThat(rechazos(resultados)).hasSize(1)
+                .allSatisfy(e -> assertThat(e.getMessage())
+                        .contains("ya tiene un préstamo activo"));
+
+        Prestamo creado = resultados.stream()
+                .filter(Prestamo.class::isInstance)
+                .map(Prestamo.class::cast)
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(creado.getEstado())
+                .isEqualTo(EstadoPrestamo.PENDIENTE_AUTORIZACION);
+
+        assertThat(abiertosDeLaUnidad(14L)).isEqualTo(1);
+
+        // Solicitar una unidad no genera un evento de entrega.
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM evento_unidad_pendiente",
+                Long.class
+        )).isZero();
+    }
+
+    @Test
+    @DisplayName("Los préstamos pendientes de autorización ocupan cupo del límite de tres")
+    void pendientesOcupanCupo() throws Exception {
+
+        when(inventario.obtenerUnidad(101L)).thenReturn(
+                new UnidadInventario(
+                        101L,
+                        "U-101",
+                        EstadoUnidad.DISPONIBLE,
+                        2L,
+                        7,
+                        true
+                )
+        );
+
+        Prestamo pendiente = servicio.solicitar(101L, "ana");
+
+        assertThat(pendiente.getEstado())
+                .isEqualTo(EstadoPrestamo.PENDIENTE_AUTORIZACION);
+
+        servicio.solicitar(102L, "ana");
+
+        // Con dos préstamos activos, solo queda un cupo disponible.
+        List<Object> resultados = simultaneas(List.of(
+                () -> servicio.solicitar(103L, "ana"),
+                () -> servicio.solicitar(104L, "ana")
+        ));
+
+        assertThat(creados(resultados)).isEqualTo(1);
+
+        assertThat(rechazos(resultados)).hasSize(1)
+                .allSatisfy(e -> assertThat(e.getMessage())
+                        .contains("tope de 3"));
+
+        assertThat(dao.countBySolicitanteIdAndEstadoIn(
+                "ana", EstadoPrestamo.activos()
+        )).isEqualTo(3);
+    }
+
+    // ==========================================
+    // MIGRACION DE LA RESTRICCION CHECK
+    // ==========================================
+
+    @Test
+    @DisplayName("La migración permite el nuevo estado sin eliminar préstamos existentes")
+    void migracionCheckConservaPrestamos() {
+
+        LocalDate hoy = LocalDate.of(2026, 11, 27);
+
+        Prestamo existente = dao.saveAndFlush(
+                Prestamo.solicitar(
+                        101L, 2L, "ana", 7, hoy
+                )
+        );
+
+        // Simular la restricción de una base de datos anterior.
+        jdbc.execute(
+                "ALTER TABLE prestamo "
+                        + "DROP CONSTRAINT IF EXISTS prestamo_estado_check, "
+                        + "ADD CONSTRAINT prestamo_estado_check "
+                        + "CHECK (estado IN ('SOLICITADO','ENTREGADO','DEVUELTO'))"
+        );
+
+        try {
+
+            // Antes de la migración, PostgreSQL rechaza el nuevo estado.
+            assertThatThrownBy(() -> dao.saveAndFlush(
+                    Prestamo.solicitar(
+                            102L, 2L, "luis", 7, hoy, true
+                    )
+            )).isInstanceOf(DataIntegrityViolationException.class);
+
+        } finally {
+
+            // Ejecutar el mismo componente que se utiliza al arrancar el servicio.
+            indice.run(new DefaultApplicationArguments());
+        }
+
+        // Después de la migración, el nuevo estado puede guardarse.
+        Prestamo nuevo = dao.saveAndFlush(
+                Prestamo.solicitar(
+                        102L, 2L, "luis", 7, hoy, true
+                )
+        );
+
+        assertThat(nuevo.getEstado())
+                .isEqualTo(EstadoPrestamo.PENDIENTE_AUTORIZACION);
+
+        // El préstamo anterior debe seguir existiendo sin cambios.
+        Prestamo recuperado = dao.findById(existente.getId())
+                .orElseThrow();
+
+        assertThat(recuperado.getEstado())
+                .isEqualTo(EstadoPrestamo.SOLICITADO);
+
+        assertThat(recuperado.getFechaSolicitud())
+                .isEqualTo(hoy);
+
+        assertThat(recuperado.getFechaPrevista())
+                .isEqualTo(hoy.plusDays(7));
+
+        assertThat(dao.count()).isEqualTo(2);
     }
 }

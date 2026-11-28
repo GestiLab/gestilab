@@ -31,6 +31,7 @@ import com.tedesoft.prestamosservice.domain.clients.IEventoUnidadPendiente;
  *
  * La duración se obtiene del servicio de inventario.
  * SCRUM-19 agrega entrega y devolución de unidades.
+ * La necesidad de autorización también se obtiene de inventario.
  */
 @Slf4j
 @Service
@@ -97,12 +98,35 @@ public class PrestamoServiceImpl implements IPrestamoService {
             }
 
             try {
+                // El estado inicial depende de la regla requiereAutorizacion informada por inventario.
                 return prestamoDao.saveAndFlush(Prestamo.solicitar(
-                        unidadId, tipoId, solicitante, duracion, fechaService.hoy()));
+                        unidadId, tipoId, solicitante, duracion, fechaService.hoy(),
+                        unidad.requiereAutorizacion()));
             } catch (DataIntegrityViolationException e) {
                 throw unidadYaPrestada(unidadId);
             }
         });
+    }
+
+    // ==========================================
+    // AUTORIZAR LAS SOLICITUDES QUE LO EXIGEN
+    // ==========================================
+
+    /**
+     * Autoriza un préstamo pendiente reutilizando el bloqueo de fila de SCRUM-19.
+     * Conserva las fechas y la duración aplicada.
+     * No avisa a inventario porque aún no se entrega la unidad.
+     */
+    @Override
+    @Transactional
+    public Prestamo autorizar(Long prestamoId) {
+
+        Prestamo prestamo = buscarParaCambiarDeEstado(prestamoId);
+
+        // PENDIENTE_AUTORIZACION -> SOLICITADO
+        prestamo.autorizar();
+
+        return prestamoDao.save(prestamo);
     }
 
     // ==========================================

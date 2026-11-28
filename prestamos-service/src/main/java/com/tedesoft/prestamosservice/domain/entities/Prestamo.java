@@ -67,101 +67,217 @@ public class Prestamo {
     @Column(name = "foto_entrega_clave", length = 255)
     private String fotoEntregaClave;
 
-    /** Clave de la fotografía tomada al recibir la unidad.*/
+    /** Clave de la fotografía tomada al recibir la unidad. */
     @Column(name = "foto_devolucion_clave", length = 255)
     private String fotoDevolucionClave;
 
-    private Prestamo(Long unidadId, Long tipoId, String solicitanteId, int duracionDias, LocalDate hoy) {
-        this.unidadId = Objects.requireNonNull(unidadId, "La unidad es obligatoria");
-        this.tipoId = Objects.requireNonNull(tipoId, "El tipo de equipo es obligatorio");
+    // ==========================================
+    // CONSTRUCTOR
+    // ==========================================
+
+    private Prestamo(
+            Long unidadId,
+            Long tipoId,
+            String solicitanteId,
+            int duracionDias,
+            LocalDate hoy,
+            boolean requiereAutorizacion) {
+
+        this.unidadId = Objects.requireNonNull(
+                unidadId, "La unidad es obligatoria");
+
+        this.tipoId = Objects.requireNonNull(
+                tipoId, "El tipo de equipo es obligatorio");
+
         if (solicitanteId == null || solicitanteId.isBlank()) {
-            throw new IllegalArgumentException("El solicitante es obligatorio");
+            throw new IllegalArgumentException(
+                    "El solicitante es obligatorio");
         }
+
         if (duracionDias <= 0) {
-            throw new IllegalArgumentException("La duración aplicada debe ser mayor que cero");
+            throw new IllegalArgumentException(
+                    "La duración aplicada debe ser mayor que cero");
         }
-        Objects.requireNonNull(hoy, "La fecha de hoy es obligatoria");
+
+        Objects.requireNonNull(
+                hoy, "La fecha de hoy es obligatoria");
+
         this.solicitanteId = solicitanteId.strip();
-        this.estado = EstadoPrestamo.SOLICITADO;
+
+        // CA-1 y CA-2: decidir según la regla de inventario.
+        this.estado = requiereAutorizacion
+                ? EstadoPrestamo.PENDIENTE_AUTORIZACION
+                : EstadoPrestamo.SOLICITADO;
+
         this.duracionAplicadaDias = duracionDias;
+
+        // CA-10: el plazo comienza desde la solicitud.
         this.fechaSolicitud = hoy;
         this.fechaPrevista = hoy.plusDays(duracionDias);
     }
 
+    // ==========================================
+    // SOLICITAR PRESTAMO
+    // ==========================================
+
     /**
-     * Crea un préstamo recién solicitado.
+     * Atajo para un préstamo que NO requiere autorización (nace en SOLICITADO).
      *
-     * @param duracionDias duración máxima del tipo, tal como la informó inventario.
-     * @param hoy          fecha de la solicitud; la provee quien llama, no el reloj del sistema.
+     * <p>Atención: asume {@code false} sin consultar a inventario. El código de producción debe usar la
+     * sobrecarga completa con el valor que informa inventario (lo hace {@code PrestamoServiceImpl});
+     * este atajo existe para no reescribir las pruebas anteriores a SCRUM-31.
      */
-    public static Prestamo solicitar(Long unidadId, Long tipoId, String solicitanteId, int duracionDias,
-                                     LocalDate hoy) {
-        return new Prestamo(unidadId, tipoId, solicitanteId, duracionDias, hoy);
+    public static Prestamo solicitar(
+            Long unidadId,
+            Long tipoId,
+            String solicitanteId,
+            int duracionDias,
+            LocalDate hoy) {
+
+        return solicitar(
+                unidadId,
+                tipoId,
+                solicitanteId,
+                duracionDias,
+                hoy,
+                false);
     }
 
+    /**
+     * Crea un préstamo recién solicitado aplicando la regla de autorización que informó inventario.
+     *
+     * @param duracionDias         duración máxima del tipo, tal como la informó inventario.
+     * @param hoy                  fecha de la solicitud; la provee quien llama, no el reloj del sistema.
+     * @param requiereAutorizacion {@code true} si el tipo exige autorización previa (nace en
+     *                             PENDIENTE_AUTORIZACION); {@code false}, nace en SOLICITADO.
+     */
+    public static Prestamo solicitar(
+            Long unidadId,
+            Long tipoId,
+            String solicitanteId,
+            int duracionDias,
+            LocalDate hoy,
+            boolean requiereAutorizacion) {
+
+        return new Prestamo(
+                unidadId,
+                tipoId,
+                solicitanteId,
+                duracionDias,
+                hoy,
+                requiereAutorizacion);
+    }
+
+    // ==========================================
+    // AUTORIZAR PRESTAMO
+    // ==========================================
+
+    public void autorizar() {
+
+        // CA-5: solamente se autorizan préstamos pendientes.
+        if (estado != EstadoPrestamo.PENDIENTE_AUTORIZACION) {
+
+            throw new ReglaNegocioException(
+                    "No se puede autorizar el préstamo. Estado actual: "
+                            + estado);
+        }
+
+        // CA-3: pendiente pasa a solicitado.
+        // CA-10: no se modifican las fechas.
+        this.estado = EstadoPrestamo.SOLICITADO;
+    }
+
+    // ==========================================
+    // ENTREGAR PRESTAMO
+    // ==========================================
 
     public void entregar() {
-        if (estado != EstadoPrestamo.SOLICITADO) {
+
+        // CA-4: no entregar sin autorización previa.
+        if (estado == EstadoPrestamo.PENDIENTE_AUTORIZACION) {
+
             throw new ReglaNegocioException(
-                    "No se puede entregar el préstamo. Estado actual: " + estado
-            );
+                    "No se puede entregar el préstamo. "
+                            + "Falta la autorización previa.");
         }
+
+        if (estado != EstadoPrestamo.SOLICITADO) {
+
+            throw new ReglaNegocioException(
+                    "No se puede entregar el préstamo. Estado actual: "
+                            + estado);
+        }
+
         this.estado = EstadoPrestamo.ENTREGADO;
     }
 
+    // ==========================================
+    // RECIBIR PRESTAMO
+    // ==========================================
+
     public void recibir() {
+
         if (estado != EstadoPrestamo.ENTREGADO) {
+
             throw new ReglaNegocioException(
-                    "No se puede recibir el préstamo. Estado actual: " + estado
-            );
+                    "No se puede recibir el préstamo. Estado actual: "
+                            + estado);
         }
+
         this.estado = EstadoPrestamo.DEVUELTO;
     }
 
+    // ==========================================
+    // REGISTRAR FOTO DE ENTREGA
+    // ==========================================
 
     public void registrarFotoEntrega(String clave) {
+
         if (clave == null || clave.isBlank()) {
+
             throw new IllegalArgumentException(
-                    "La clave de la fotografía de entrega es obligatoria"
-            );
+                    "La clave de la fotografía de entrega es obligatoria");
         }
 
         if (this.estado != EstadoPrestamo.ENTREGADO) {
+
             throw new IllegalStateException(
-                    "Solo se puede registrar la fotografía de un préstamo entregado"
-            );
+                    "Solo se puede registrar la fotografía de un préstamo entregado");
         }
 
         if (this.fotoEntregaClave != null) {
+
             throw new IllegalStateException(
-                    "El préstamo ya tiene fotografía de entrega"
-            );
+                    "El préstamo ya tiene fotografía de entrega");
         }
 
         this.fotoEntregaClave = clave;
     }
 
+    // ==========================================
+    // REGISTRAR FOTO DE DEVOLUCION
+    // ==========================================
+
     public void registrarFotoDevolucion(String clave) {
+
         if (clave == null || clave.isBlank()) {
+
             throw new IllegalArgumentException(
-                    "La clave de la fotografía de devolución es obligatoria"
-            );
+                    "La clave de la fotografía de devolución es obligatoria");
         }
 
         if (this.estado != EstadoPrestamo.DEVUELTO) {
+
             throw new IllegalStateException(
-                    "Solo se puede registrar la fotografía de un préstamo devuelto"
-            );
+                    "Solo se puede registrar la fotografía de un préstamo devuelto");
         }
 
         if (this.fotoDevolucionClave != null) {
+
             throw new IllegalStateException(
-                    "El préstamo ya tiene fotografía de devolución"
-            );
+                    "El préstamo ya tiene fotografía de devolución");
         }
 
         this.fotoDevolucionClave = clave;
     }
-
-
 }

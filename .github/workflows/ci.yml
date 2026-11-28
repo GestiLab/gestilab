@@ -155,3 +155,92 @@ jobs:
       - name: Compilar cliente
         working-directory: cliente
         run: npm run build
+
+
+  # Analisis estatico con SonarCloud
+  sonarcloud:
+    name: sonarcloud
+    runs-on: ubuntu-latest
+    needs: [test, cliente]
+
+    steps:
+      - name: Obtener codigo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: |
+            inventario-service/pom.xml
+            prestamos-service/pom.xml
+
+      - name: Configurar Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: cliente/package-lock.json
+
+      # Generar cobertura y clases compiladas de inventario
+      - name: Analizar pruebas de inventario
+        run: |
+          mvn -B -ntp -f inventario-service/pom.xml clean verify
+          mvn -B -ntp -f inventario-service/pom.xml dependency:copy-dependencies -DoutputDirectory="$GITHUB_WORKSPACE/inventario-service/target/sonar-libs"
+
+      # Generar cobertura y clases compiladas de prestamos
+      - name: Analizar pruebas de prestamos
+        run: |
+          mvn -B -ntp -f prestamos-service/pom.xml clean verify
+          mvn -B -ntp -f prestamos-service/pom.xml dependency:copy-dependencies -DoutputDirectory="$GITHUB_WORKSPACE/prestamos-service/target/sonar-libs"
+
+      # Instalar dependencias del cliente Angular
+      - name: Instalar dependencias Angular
+        working-directory: cliente
+        run: npm ci
+
+      # Generar informe LCOV del cliente
+      - name: Generar cobertura Angular
+        working-directory: cliente
+        env:
+          NG_CLI_ANALYTICS: 'false'
+        run: npm test -- --watch=false --coverage --coverage-reporters=lcov --coverage-reporters=text
+
+      # Verificar los tres informes de cobertura
+      - name: Verificar informes de cobertura
+        shell: bash
+        run: |
+          test -s inventario-service/target/site/jacoco/jacoco.xml
+          test -s prestamos-service/target/site/jacoco/jacoco.xml
+          test -s cliente/coverage/cliente/lcov.info
+
+          sed -i 's|^SF:src/|SF:cliente/src/|' cliente/coverage/cliente/lcov.info
+
+          echo "Informes de cobertura generados correctamente"
+
+      # Guardar evidencia de las mediciones
+      - name: Guardar informes de cobertura
+        uses: actions/upload-artifact@v4
+        with:
+          name: informes-cobertura
+          path: |
+            inventario-service/target/site/jacoco/
+            prestamos-service/target/site/jacoco/
+            cliente/coverage/
+          if-no-files-found: error
+          retention-days: 30
+
+      # Ejecutar analisis estatico y comprobar la puerta de calidad
+      - name: Analizar GestiLab con SonarCloud
+        uses: SonarSource/sonarqube-scan-action@v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}

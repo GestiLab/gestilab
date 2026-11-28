@@ -50,7 +50,7 @@ public class PrestamoRestController {
 
     @PostMapping
     public ResponseEntity<PrestamoResponseDto> solicitar(@Valid @RequestBody SolicitudPrestamoRequestDto request,
-                                                        Authentication autenticacion) {
+                                                         Authentication autenticacion) {
         // Quién solicita es el sub del token (SCRUM-24, CA-2): el cuerpo no lo trae y, si lo trae, se ignora.
         // Unidad no disponible -> 409, inexistente -> 404, inventario caído -> 503: GlobalExceptionHandler
         Prestamo creado = prestamoService.solicitar(request.unidadId(), solicitanteDelToken(autenticacion));
@@ -148,6 +148,20 @@ public class PrestamoRestController {
             // se responde igual que un préstamo ajeno
         }
         throw new AccessDeniedException("préstamo ajeno o inexistente");
+    }
+
+
+    /**
+     * Autoriza una solicitud pendiente (PENDIENTE_AUTORIZACION a SOLICITADO).
+     * Solo el auxiliar puede realizar esta operación según SeguridadConfig.
+     *
+     * Conserva las fechas originales del préstamo y no publica eventos para inventario.
+     * Si el préstamo no existe responde 404; si su estado no permite autorizarlo, responde 409.
+     */
+    @PatchMapping("/{id}/autorizar")
+    public ResponseEntity<PrestamoResponseDto> autorizar(@PathVariable Long id) {
+        return ResponseEntity.ok(PrestamoResponseDto.desde(
+                prestamoService.autorizar(id)));
     }
 
 

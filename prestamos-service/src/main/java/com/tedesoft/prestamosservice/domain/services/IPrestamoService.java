@@ -13,6 +13,9 @@ public interface IPrestamoService {
      * Solicita una unidad: consulta a inventario su estado y las reglas de su tipo, y si está disponible
      * crea el préstamo con fecha prevista = hoy + duración máxima del tipo.
      *
+     * Si el tipo requiere autorización, el préstamo se crea en PENDIENTE_AUTORIZACION;
+     * en caso contrario, se crea en SOLICITADO.
+     *
      * @throws com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException
      *         si la unidad no existe.
      * @throws com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException
@@ -21,6 +24,22 @@ public interface IPrestamoService {
      *         si inventario no responde.
      */
     Prestamo solicitar(Long unidadId, String solicitanteId);
+
+    /**
+     * Autoriza un préstamo que se encuentra en PENDIENTE_AUTORIZACION
+     * y cambia su estado a SOLICITADO.
+     *
+     * Conserva la fecha de solicitud, la fecha prevista y la duración aplicada.
+     * No publica eventos de cambio de estado de la unidad.
+     *
+     * @param prestamoId identificador del préstamo que se desea autorizar.
+     * @return préstamo autorizado.
+     * @throws com.tedesoft.prestamosservice.domain.exception.RecursoNoEncontradoException
+     *         si el préstamo no existe.
+     * @throws com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException
+     *         si el préstamo no está pendiente de autorización.
+     */
+    Prestamo autorizar(Long prestamoId);
 
     /**
      * Consulta un préstamo por su id.
@@ -49,6 +68,9 @@ public interface IPrestamoService {
     /**
      * Registra la entrega de una unidad.
      * Cambia el préstamo de SOLICITADO a ENTREGADO.
+     *
+     * Un préstamo en PENDIENTE_AUTORIZACION no puede entregarse
+     * hasta que haya sido autorizado.
      */
     Prestamo entregar(Long prestamoId);
 
