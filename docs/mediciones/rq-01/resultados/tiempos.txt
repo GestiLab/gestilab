@@ -1,0 +1,3 @@
+parte automática : 0 s
+cronometrado     : 1 s (0.0 min) desde el inicio del cronómetro hasta que el tipo quedó operativo
+operativo        : si

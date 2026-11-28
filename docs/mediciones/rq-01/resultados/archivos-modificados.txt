@@ -1,0 +1,10 @@
+fuera de los servicios  -      docs/mediciones/rq-01/medir.sh
+fuera de los servicios  -      docs/mediciones/rq-01/resultados/archivos-modificados.txt
+fuera de los servicios  -      docs/mediciones/rq-01/resultados/etiqueta.txt
+fuera de los servicios  -      docs/mediciones/rq-01/resultados/git-diff-stat.txt
+fuera de los servicios  -      docs/mediciones/rq-01/resultados/maven-inventario-service.log
+fuera de los servicios  -      docs/mediciones/rq-01/resultados/maven-prestamos-service.log
+fuera de los servicios  -      docs/mediciones/rq-01/resultados/procedimiento.txt
+fuera de los servicios  -      docs/mediciones/rq-01/resultados/pruebas.txt
+fuera de los servicios  -      docs/mediciones/rq-01/resultados/resumen.md
+fuera de los servicios  -      docs/mediciones/rq-01/resultados/tiempos.txt

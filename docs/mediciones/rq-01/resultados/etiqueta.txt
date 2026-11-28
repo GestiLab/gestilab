@@ -1,0 +1,4 @@
+etiqueta : rq01-base-provisional
+commit   : 5991a0e95ccc36c549d284863dfbbf23d671cd7a
+creada   : 2026-11-28 01:45:07 -0500
+HEAD     : 5991a0e95ccc36c549d284863dfbbf23d671cd7a
