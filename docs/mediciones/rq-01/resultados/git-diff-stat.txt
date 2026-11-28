@@ -1,0 +1,11 @@
+ docs/mediciones/rq-01/medir.sh | 13 ++++++-------
+ 1 file changed, 6 insertions(+), 7 deletions(-)
+(sin versionar) docs/mediciones/rq-01/resultados/archivos-modificados.txt
+(sin versionar) docs/mediciones/rq-01/resultados/etiqueta.txt
+(sin versionar) docs/mediciones/rq-01/resultados/git-diff-stat.txt
+(sin versionar) docs/mediciones/rq-01/resultados/maven-inventario-service.log
+(sin versionar) docs/mediciones/rq-01/resultados/maven-prestamos-service.log
+(sin versionar) docs/mediciones/rq-01/resultados/procedimiento.txt
+(sin versionar) docs/mediciones/rq-01/resultados/pruebas.txt
+(sin versionar) docs/mediciones/rq-01/resultados/resumen.md
+(sin versionar) docs/mediciones/rq-01/resultados/tiempos.txt

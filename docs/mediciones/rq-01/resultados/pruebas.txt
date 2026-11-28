@@ -1,0 +1,2 @@
+inventario-service: Tests run: 268, Failures: 0, Errors: 0, Skipped: 0 (código 0)
+prestamos-service: Tests run: 330, Failures: 0, Errors: 0, Skipped: 2 (código 0)
