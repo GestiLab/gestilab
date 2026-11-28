@@ -1,4 +1,3 @@
-
 package com.tedesoft.prestamosservice.integration;
 
 import com.tedesoft.prestamosservice.domain.clients.IInventarioClient;

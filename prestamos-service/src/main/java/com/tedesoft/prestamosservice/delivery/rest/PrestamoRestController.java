@@ -1,4 +1,3 @@
-
 package com.tedesoft.prestamosservice.delivery.rest;
 
 import com.tedesoft.prestamosservice.delivery.rest.dto.FiltroPersonaDto;

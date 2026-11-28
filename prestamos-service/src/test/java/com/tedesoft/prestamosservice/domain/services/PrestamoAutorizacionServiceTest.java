@@ -1,4 +1,3 @@
-
 package com.tedesoft.prestamosservice.domain.services;
 
 import com.tedesoft.prestamosservice.domain.clients.IAlmacenamientoFotos;

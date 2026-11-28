@@ -1,4 +1,3 @@
-
 package com.tedesoft.prestamosservice.infrastructure.persistence;
 
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
@@ -21,7 +20,9 @@ import java.util.stream.Collectors;
  * un ERROR con el SQL y el servicio arranca igual (la comprobación en código sigue activa).
  *
  * <p>La autorización previa también exige actualizar la restricción CHECK de la columna estado,
- * porque Hibernate no actualiza automáticamente esa restricción en una base existente.
+ * porque Hibernate no actualiza automáticamente esa restricción en una base existente. A diferencia del
+ * índice, si esa migración falla el servicio <b>no arranca</b> (decisión de SCRUM-31): con un CHECK viejo
+ * la base rechazaría PENDIENTE_AUTORIZACION y la solicitud respondería un 409 engañoso («unidad ya prestada»). Como el índice, se aplica en cada arranque.
  */
 @Slf4j
 @Component

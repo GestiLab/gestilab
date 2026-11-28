@@ -1,4 +1,3 @@
-
 package com.tedesoft.prestamosservice.delivery.security;
 
 import com.tedesoft.prestamosservice.delivery.rest.PrestamoRestController;

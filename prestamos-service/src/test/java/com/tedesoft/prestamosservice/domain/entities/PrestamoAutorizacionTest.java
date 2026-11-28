@@ -1,4 +1,3 @@
-
 package com.tedesoft.prestamosservice.domain.entities;
 
 import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;

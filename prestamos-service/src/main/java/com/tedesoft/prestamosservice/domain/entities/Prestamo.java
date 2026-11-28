@@ -1,4 +1,3 @@
-
 package com.tedesoft.prestamosservice.domain.entities;
 
 import jakarta.persistence.Column;
@@ -21,11 +20,11 @@ import com.tedesoft.prestamosservice.domain.exception.ReglaNegocioException;
 /**
  * Préstamo de una unidad a una persona (RF-04).
  *
- * unidadId y tipoId son referencias lógicas porque
- * inventario pertenece a otro microservicio.
+ * <p>{@code unidadId} y {@code tipoId} son referencias lógicas: la base de inventario es de otro
+ * servicio y no hay clave foránea entre bases. La duración aplicada se guarda en el préstamo para que
+ * un cambio posterior de la regla del tipo no reescriba el historial (RF-01 + RF-04).
  *
- * La duración aplicada se conserva en el préstamo.
- * El dominio recibe la fecha de solicitud por parámetro.
+ * <p>El dominio no consulta el reloj del sistema: la fecha de hoy llega por parámetro (RQ-02).
  */
 @Entity
 @Table(name = "prestamo")
@@ -43,11 +42,12 @@ public class Prestamo {
     @Column(name = "tipo_id", nullable = false)
     private Long tipoId;
 
-    /** Identificador de la persona obtenido del token. */
+    /** Identificador de la persona: el {@code sub} del token de quien solicitó (SCRUM-24). */
     @Column(name = "solicitante_id", nullable = false, length = 100)
     private String solicitanteId;
 
     @Enumerated(EnumType.STRING)
+    // 30 y no 20: PENDIENTE_AUTORIZACION (22 caracteres, P-01) no cabría en una columna creada con 20
     @Column(name = "estado", nullable = false, length = 30)
     private EstadoPrestamo estado;
 
@@ -121,8 +121,11 @@ public class Prestamo {
     // ==========================================
 
     /**
-     * Mantiene la compatibilidad con las solicitudes
-     * que no requieren autorización previa.
+     * Atajo para un préstamo que NO requiere autorización (nace en SOLICITADO).
+     *
+     * <p>Atención: asume {@code false} sin consultar a inventario. El código de producción debe usar la
+     * sobrecarga completa con el valor que informa inventario (lo hace {@code PrestamoServiceImpl});
+     * este atajo existe para no reescribir las pruebas anteriores a SCRUM-31.
      */
     public static Prestamo solicitar(
             Long unidadId,
@@ -141,8 +144,12 @@ public class Prestamo {
     }
 
     /**
-     * Crea un préstamo aplicando la regla de autorización
-     * recibida desde inventario.
+     * Crea un préstamo recién solicitado aplicando la regla de autorización que informó inventario.
+     *
+     * @param duracionDias         duración máxima del tipo, tal como la informó inventario.
+     * @param hoy                  fecha de la solicitud; la provee quien llama, no el reloj del sistema.
+     * @param requiereAutorizacion {@code true} si el tipo exige autorización previa (nace en
+     *                             PENDIENTE_AUTORIZACION); {@code false}, nace en SOLICITADO.
      */
     public static Prestamo solicitar(
             Long unidadId,

@@ -1,4 +1,3 @@
-
 package com.tedesoft.prestamosservice.infrastructure.persistence;
 
 import com.tedesoft.prestamosservice.domain.entities.EstadoPrestamo;
