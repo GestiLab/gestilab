@@ -1,9 +1,10 @@
 import { Routes } from '@angular/router';
 import { Catalogo } from './components/catalogo/catalogo';
 import { Inicio } from './components/inicio/inicio';
+import { Retrasos } from './components/retrasos/retrasos';
 import { rolPermitido } from './auth/rol-permitido';
 import { sesionIniciada } from './auth/sesion-iniciada';
-import { ROLES_CATALOGO } from './auth/roles';
+import { ROLES_CATALOGO, ROLES_RETRASOS } from './auth/roles';
 
 // Cada pantalla agrega aquí su ruta cuando se construye.
 // `title` es lo que aparece en la pestaña del navegador.
@@ -16,5 +17,12 @@ export const routes: Routes = [
     title: 'Catálogo de equipos · GestiLab',
     canActivate: [sesionIniciada, rolPermitido],
     data: { roles: ROLES_CATALOGO },
+  },
+  {
+    path: 'retrasos',
+    component: Retrasos,
+    title: 'Préstamos retrasados · GestiLab',
+    canActivate: [sesionIniciada, rolPermitido],
+    data: { roles: ROLES_RETRASOS },
   },
 ];

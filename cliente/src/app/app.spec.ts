@@ -64,6 +64,15 @@ describe('App', () => {
       expect(compiled.querySelector('nav')?.textContent).toContain('Catálogo');
     });
 
+    it('SCRUM-38 CA-5: el auxiliar ve la opción Retrasos y el usuario no', async () => {
+      const auxiliar = await arrancar(['auxiliar']);
+      expect(auxiliar.querySelector('nav')?.textContent).toContain('Retrasos');
+      fixture.destroy();
+
+      const usuario = await arrancar(['usuario']);
+      expect(usuario.querySelector('nav')?.textContent).not.toContain('Retrasos');
+    });
+
     it('CA-5: una persona sin rol conocido no ve ninguna opción', async () => {
       const compiled = await arrancar([]);
       expect(compiled.querySelector('nav')?.textContent).not.toContain('Catálogo');
@@ -109,6 +118,30 @@ describe('App', () => {
       const harness = await RouterTestingHarness.create();
       await harness.navigateByUrl('/catalogo');
       expect(TestBed.inject(Router).url).toBe('/catalogo');
+    });
+
+    it('SCRUM-38 CA-5: con sesión de auxiliar entra al tablero de retrasos', async () => {
+      oauth.token = fabricarToken({ preferred_username: 'a', realm_access: { roles: ['auxiliar'] } });
+      await TestBed.inject(AuthService).iniciar();
+      const harness = await RouterTestingHarness.create();
+      await harness.navigateByUrl('/retrasos');
+      expect(TestBed.inject(Router).url).toBe('/retrasos');
+    });
+
+    it('SCRUM-38 CA-5: con sesión de usuario no entra al tablero y vuelve al inicio', async () => {
+      oauth.token = fabricarToken({ preferred_username: 'a', realm_access: { roles: ['usuario'] } });
+      await TestBed.inject(AuthService).iniciar();
+      const harness = await RouterTestingHarness.create();
+      await harness.navigateByUrl('/retrasos');
+      expect(TestBed.inject(Router).url).toBe('/');
+    });
+
+    it('SCRUM-38 CA-5: sin sesión el tablero lleva a iniciar sesión y no entra', async () => {
+      await TestBed.inject(AuthService).iniciar();
+      const harness = await RouterTestingHarness.create();
+      await harness.navigateByUrl('/retrasos');
+      expect(oauth.llamadas).toContain('initCodeFlow');
+      expect(TestBed.inject(Router).url).not.toBe('/retrasos');
     });
 
     it('CA-7: la raíz es pública y no pide iniciar sesión', async () => {

@@ -4,6 +4,7 @@ export type Rol = 'usuario' | 'auxiliar';
 // Qué roles pueden entrar a cada pantalla. Menú y rutas leen de aquí,
 // así no se escribe el permiso en dos sitios que luego se desincronizan.
 export const ROLES_CATALOGO: Rol[] = ['usuario', 'auxiliar'];
+export const ROLES_RETRASOS: Rol[] = ['auxiliar'];
 
 // Una opción del menú: solo la ve quien tenga alguno de sus roles (CA-5).
 export interface OpcionMenu {
@@ -15,4 +16,5 @@ export interface OpcionMenu {
 // Cada pantalla de rol que se construya agrega aquí su opción.
 export const OPCIONES_MENU: OpcionMenu[] = [
   { texto: 'Catálogo', ruta: '/catalogo', roles: ROLES_CATALOGO },
+  { texto: 'Retrasos', ruta: '/retrasos', roles: ROLES_RETRASOS },
 ];
