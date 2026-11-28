@@ -19,11 +19,10 @@ NOMBRE_TIPO=${NOMBRE_TIPO:-Osciloscopio}
 # Duración distinta de las de los tipos ya sembrados (7, 1 y 3 días), para que el tipo sea de verdad nuevo
 DURACION_DIAS=${DURACION_DIAS:-5}
 NUMERO_UNIDAD=${NUMERO_UNIDAD:-OSC-001}
-SOLICITANTE=${SOLICITANTE:-medicion-rq01}
-# Ruta para autorizar un préstamo ({id} se reemplaza). Pendiente de confirmar con la historia de autorización (SCRUM-31).
+# Ruta para autorizar un préstamo ({id} se reemplaza): PATCH, la que dejó la historia de autorización (SCRUM-31).
 # (en dos pasos: dentro de ${VAR:-...} la llave de {id} cerraría la expansión antes de tiempo)
 RUTA_AUTORIZAR=${RUTA_AUTORIZAR:-}
-[ -n "$RUTA_AUTORIZAR" ] || RUTA_AUTORIZAR='/prestamos/{id}/autorizacion'
+[ -n "$RUTA_AUTORIZAR" ] || RUTA_AUTORIZAR='/prestamos/{id}/autorizar'
 LIMITE_MINUTOS=30
 # Segundo Unix en que se empezó a cronometrar (`export INICIO_EPOCH=$(date +%s)`); por omisión, el inicio del script
 INICIO_EPOCH=${INICIO_EPOCH:-}
@@ -124,7 +123,7 @@ for orden in git curl python3 mvn java; do
     command -v "$orden" > /dev/null || { echo "Falta '$orden' en el PATH." >&2; exit 2; }
 done
 # Los valores van dentro de un JSON: solo letras, números, espacios, guion y guion bajo
-for variable in NOMBRE_TIPO NUMERO_UNIDAD SOLICITANTE; do
+for variable in NOMBRE_TIPO NUMERO_UNIDAD; do
     [[ "${!variable}" =~ ^[[:alnum:]\ _-]+$ ]] || { echo "$variable='${!variable}' tiene caracteres no permitidos (solo letras, números, espacios, - y _)." >&2; exit 2; }
 done
 [[ "$DURACION_DIAS" =~ ^[0-9]+$ ]] && [ "$DURACION_DIAS" -ge 1 ] && [ "$DURACION_DIAS" -le 365 ] \
@@ -216,8 +215,8 @@ awk -v m="$MINUTOS" -v l="$LIMITE_MINUTOS" 'BEGIN {exit !(m+0 < l+0)}' || fallar
 # ---------- CA-5: el tipo funciona (solicitar, autorizar, fecha de devolución) ----------
 CA5=no
 if [ "$OPERATIVO" = si ]; then
-    paso "Solicitando la unidad como usuario..."
-    codigo=$(api POST "$MEDIR_PRESTAMOS_URL/prestamos" "$TOKEN_USUARIO" "{\"unidadId\":$UNIDAD_ID,\"solicitanteId\":\"$SOLICITANTE\"}")
+    paso "Solicitando la unidad como usuario (el solicitante sale del token, SCRUM-24)..."
+    codigo=$(api POST "$MEDIR_PRESTAMOS_URL/prestamos" "$TOKEN_USUARIO" "{\"unidadId\":$UNIDAD_ID}")
     PRESTAMO_ID=$(json_get id); ESTADO=$(json_get estado)
     FECHA_SOLICITUD=$(json_get fechaSolicitud); FECHA_PREVISTA=$(json_get fechaDevolucionPrevista)
     if [ "$codigo" != 201 ] || [ -z "$PRESTAMO_ID" ]; then
@@ -227,7 +226,7 @@ if [ "$OPERATIVO" = si ]; then
         fallar "el tipo exige autorización y el préstamo no la esperó: falta la historia de autorización previa (SCRUM-31)"
     else
         paso "  préstamo $PRESTAMO_ID en PENDIENTE_AUTORIZACION; autorizando como auxiliar..."
-        codigo=$(api POST "$MEDIR_PRESTAMOS_URL${RUTA_AUTORIZAR//\{id\}/$PRESTAMO_ID}" "$TOKEN_AUXILIAR")
+        codigo=$(api PATCH "$MEDIR_PRESTAMOS_URL${RUTA_AUTORIZAR//\{id\}/$PRESTAMO_ID}" "$TOKEN_AUXILIAR")
         if [ "$codigo" != 200 ]; then
             fallar "autorizar respondió $codigo ($(json_get mensaje)); revisa RUTA_AUTORIZAR=$RUTA_AUTORIZAR"
         else
